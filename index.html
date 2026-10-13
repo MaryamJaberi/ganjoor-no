@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>گنجور نو — پروتوتایپ ریدیزاین</title>
+    <meta
+      name="description"
+      content="پروتوتایپ تجربه خواندن شعر فارسی. نمونه کار طراحی مریم جابری. نسخه رسمی گنجور نیست."
+    />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#content">پرش به محتوا</a>
+    <header class="bar" id="bar">
+      <a class="brand" href="#/">گنجور نو</a>
+      <nav class="desk" aria-label="اصلی">
+        <a href="#/poets">شاعران</a>
+        <a href="#/map">نقشه</a>
+        <a href="#/discover">کشف</a>
+        <a href="#/vazn">وزن</a>
+        <a href="#/history">تاریخ</a>
+        <a href="#/library">کتابخانه من</a>
+      </nav>
+      <form id="search-form" class="search">
+        <label class="sr" for="q">جستجو</label>
+        <input id="q" name="q" placeholder="شعر، شاعر، بیت…" />
+      </form>
+      <button type="button" class="menu" id="menu" aria-expanded="false" aria-label="فهرست">فهرست</button>
+    </header>
+    <nav class="mobile" id="mobile" hidden>
+      <a href="#/poets">شاعران</a>
+      <a href="#/map">نقشه</a>
+      <a href="#/discover">کشف</a>
+      <a href="#/vazn">وزن</a>
+      <a href="#/history">تاریخ</a>
+      <a href="#/library">کتابخانه من</a>
+      <a href="#/readings">خوانش‌ها</a>
+      <a href="#/about">درباره</a>
+    </nav>
+    <main id="content"></main>
+    <footer id="foot">
+      <p>پروتوتایپ ریدیزاین برای نمونه کار. الهام از گنجور؛ این نسخه رسمی آن سایت نیست.</p>
+      <p>طراحی و ساخت: مریم جابری</p>
+      <p><a href="#/about">درباره این طراحی</a> · <a href="#/readings">خوانش‌ها</a></p>
+    </footer>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
