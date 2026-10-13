@@ -148,7 +148,7 @@ function page(title, body, quiet = false) {
   bar.hidden = quiet;
   foot.hidden = quiet;
   root.onclick = null;
-  root.innerHTML = body;
+  root.innerHTML = `<div class="sheet">${body}</div>`;
   window.scrollTo(0, 0);
 }
 
@@ -157,10 +157,11 @@ function home() {
   const cards = DATA.poets.map(cardPoet).join("");
   page(
     "خانه",
-    `${noteBanner()}
+    `<header class="hero">
      <p class="kicker">گنجینه شعر فارسی</p>
      <h1>شعر را آرام بخوان، ارتباطش را ببین</h1>
      <p class="lead">نمونه تعاملی ریدیزاین. متن در مرکز است. معنی، نسخه، حاشیه، سن شاعر و هم‌عصران یک کلیک دورترند.</p>
+     </header>
      <div class="grid cards three" style="margin-top:20px">
        <a class="card ink" href="#/map"><strong>نقشه هم‌عصران</strong><div>سال را جابه‌جا کن و ببین چه کسانی همزمان زنده‌اند.</div></a>
        <a class="card lapis-card" href="#/sky"><strong>آسمان شعر</strong><div>هر شاعر یک ستاره است. قرن را عوض کن.</div></a>
@@ -169,7 +170,8 @@ function home() {
      <h2 class="section">از اینجا شروع کن</h2>
      ${siteLinks()}
      <h2 class="section">شاعران این نمونه</h2>
-     <div class="grid cards">${cards}</div>`,
+     <div class="grid cards">${cards}</div>
+     ${noteBanner()}`,
   );
 }
 
@@ -282,9 +284,11 @@ function poem(poetId, bookId, poemId) {
     .join("");
   page(
     item.title,
-    `<p class="crumb"><a href="#/poets">شاعران</a> / <a href="#/poet/${poet.id}">${esc(poet.name)}</a> / <a href="#/book/${poet.id}/${bk.id}">${esc(bk.title)}</a></p>
+    `<article class="read">
+     <p class="crumb"><a href="#/poets">شاعران</a> / <a href="#/poet/${poet.id}">${esc(poet.name)}</a> / <a href="#/book/${poet.id}/${bk.id}">${esc(bk.title)}</a></p>
      <h1>${esc(item.title)}</h1>
-     <p class="muted">${esc(poet.name)} · حدود ${item.age} سالگی · ${item.year} · قافیه ${esc(item.rhyme)}</p>
+     <div class="ornament" aria-hidden="true"></div>
+     <p class="muted byline">${esc(poet.name)} · حدود ${item.age} سالگی · ${item.year} · قافیه ${esc(item.rhyme)}</p>
      <p class="chips">
        ${form ? `<a class="chip" href="#/form/${form.id}">${esc(item.form)}</a>` : ""}
        <a class="chip" href="#/vazn?m=${encodeURIComponent(item.meter)}">${esc(item.meter)}</a>
@@ -307,7 +311,8 @@ function poem(poetId, bookId, poemId) {
      <label class="panel block">یادداشت من
        <textarea id="note" rows="4">${esc(saved.notes[item.id] || "")}</textarea>
      </label>
-     ${noteBanner()}`,
+     ${noteBanner()}
+     </article>`,
   );
   let active = 0;
   let tab = "plain";
@@ -768,6 +773,12 @@ function render() {
       const q = query().get("q");
       const input = document.querySelector("#q");
       if (q != null && input) input.value = q;
+      document.querySelectorAll(".desk a, .mobile a, .footlinks a").forEach((link) => {
+        const href = link.getAttribute("href") || "";
+        const on = href === path || (href !== "#/" && path.startsWith(href));
+        if (on) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+      });
       return;
     }
   }
