@@ -63,10 +63,10 @@ function locate(poetId, bookId, poemId) {
 }
 function esc(value) {
   return String(value)
-    .replaceAll("&", "&")
-    .replaceAll("<", "<")
-    .replaceAll(">", ">")
-    .replaceAll('"', """);
+    .replaceAll("&", "\u0026amp;")
+    .replaceAll("<", "\u0026lt;")
+    .replaceAll(">", "\u0026gt;")
+    .replaceAll('"', "\u0026quot;");
 }
 function poemHref(item) {
   return `#/poem/${item.poet.id}/${item.book.id}/${item.poem.id}`;
@@ -241,12 +241,16 @@ function poem(poetId, bookId, poemId) {
         : ""
     }
       <div class="tabs">
-        ${["plain:معنی", "mystic:تفسیر", "talk:حاشیه", "links:پیوند"]
-          .map(([id]) => id)
-          .map((id, idx) => {
-            const label = ["معنی", "تفسیر", "حاشیه", "پیوند"][idx];
-            return `<button class="chip ${tab === id ? "on" : ""}" data-tab="${id}">${label}</button>`;
-          })
+        ${[
+          ["plain", "معنی"],
+          ["mystic", "تفسیر"],
+          ["talk", "حاشیه"],
+          ["links", "پیوند"],
+        ]
+          .map(
+            ([id, label]) =>
+              `<button class="chip ${tab === id ? "on" : ""}" data-tab="${id}">${label}</button>`,
+          )
           .join("")}
       </div>
       <p><strong>${esc(verse.text)}</strong></p>
