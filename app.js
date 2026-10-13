@@ -154,25 +154,50 @@ function page(title, body, quiet = false) {
 
 function home() {
   const featured = allPoems()[Math.floor(Date.now() / 86400000) % allPoems().length];
-  const cards = DATA.poets.map(cardPoet).join("");
+  const faces = DATA.poets
+    .map((poet, index) => {
+      const tone = ["t1", "t2", "t3", "t4"][index % 4];
+      return `<a class="face" href="#/poet/${poet.id}"><span class="medal ${tone}">${esc(poet.name.slice(0, 1))}</span><strong>${esc(poet.name)}</strong><small>قرن ${poet.century} · ${esc(poet.city)}</small></a>`;
+    })
+    .join("");
+  const cents = [...new Set(DATA.poets.map((poet) => poet.century))]
+    .sort((a, b) => a - b)
+    .map((century) => `<a class="cent" href="#/poets?c=${century}">قرن ${century}</a>`)
+    .join("");
   page(
     "خانه",
-    `<header class="hero">
-     <p class="kicker">گنجینه شعر فارسی</p>
-     <h1>شعر را آرام بخوان، ارتباطش را ببین</h1>
-     <p class="lead">نمونه تعاملی ریدیزاین. متن در مرکز است. معنی، نسخه، حاشیه، سن شاعر و هم‌عصران یک کلیک دورترند.</p>
-     </header>
-     <div class="grid cards three" style="margin-top:20px">
-       <a class="card ink" href="#/map"><strong>نقشه هم‌عصران</strong><div>سال را جابه‌جا کن و ببین چه کسانی همزمان زنده‌اند.</div></a>
-       <a class="card lapis-card" href="#/sky"><strong>آسمان شعر</strong><div>هر شاعر یک ستاره است. قرن را عوض کن.</div></a>
-       <a class="card" href="${poemHref(featured)}"><div class="kicker">بیت نمونه امروز</div><strong>${esc(featured.poem.title)}</strong><div class="muted">${esc(featured.poet.name)}: ${esc(featured.poem.verses[0].text)}</div></a>
-     </div>
-     <h2 class="section">از اینجا شروع کن</h2>
-     ${siteLinks()}
-     <h2 class="section">شاعران این نمونه</h2>
-     <div class="grid cards">${cards}</div>
+    `<section class="welcome">
+       <div>
+         <p class="kicker">گنجینه شعر پارسی</p>
+         <h1>به جهان شعر پارسی خوش آمدید</h1>
+         <p class="lead">متن در مرکز است. معنی، نسخه، حاشیه و هم‌عصران یک کلیک دورترند.</p>
+         <form class="big-search" id="home-search">
+           <input name="q" placeholder="جستجو در اشعار، شاعران و موضوع‌ها…" aria-label="جستجو" />
+           <button class="btn primary" type="submit">جستجو</button>
+         </form>
+         <p class="chips">
+           <a class="chip" href="#/map">نقشه هم‌عصران</a>
+           <a class="chip" href="#/poets">شاعران بزرگ</a>
+           <a class="chip" href="#/eras">بر اساس قرن</a>
+           <a class="chip" href="${poemHref(featured)}">شعر روز</a>
+         </p>
+       </div>
+       <a class="calligraphy" href="#/poet/${featured.poet.id}">${esc(featured.poet.name)}</a>
+     </section>
+     <h2 class="section">شاعران برجسته</h2>
+     <div class="faces">${faces}</div>
+     <h2 class="section">پیمایش بر اساس قرن</h2>
+     <div class="cents">${cents}</div>
      ${noteBanner()}`,
   );
+  const homeSearch = document.querySelector("#home-search");
+  if (homeSearch) {
+    homeSearch.onsubmit = (event) => {
+      event.preventDefault();
+      const q = new FormData(homeSearch).get("q") || "";
+      location.hash = `#/search?q=${encodeURIComponent(String(q))}`;
+    };
+  }
 }
 
 function poets() {
@@ -195,7 +220,10 @@ function poet(id) {
   const item = poetBy(id);
   if (!item) return page("نیست", `<h1>این شاعر در نمونه نیست.</h1>`);
   const books = item.books
-    .map((book) => `<a class="card" href="#/book/${item.id}/${book.id}"><strong>${esc(book.title)}</strong><div class="muted">${book.poems.length} شعر · ${esc(book.intro)}</div></a>`)
+    .map(
+      (book, index) =>
+        `<a class="cover c${index % 4}" href="#/book/${item.id}/${book.id}"><small>${book.poems.length} شعر</small><strong>${esc(book.title)}</strong></a>`,
+    )
     .join("");
   const span = Math.max(1, item.death - item.birth);
   const poems = item.books
@@ -207,7 +235,10 @@ function poet(id) {
     })
     .join("");
   const life = item.timeline
-    .map((step) => `<article class="card"><div class="kicker">${esc(step.year)}</div><strong>${esc(step.label)}</strong><p class="muted">${esc(step.detail || "")}</p></article>`)
+    .map(
+      (step, index) =>
+        `<li class="seg s${index % 4}"><strong>${esc(step.year)}</strong><span>${esc(step.label)}</span><small>${esc(step.detail || "")}</small></li>`,
+    )
     .join("");
   const roles = (item.position || [])
     .map((role) => `<article class="card"><div class="kicker">${role.from}–${role.to}</div><strong>${esc(role.role)}</strong><p>${esc(role.effect)}</p></article>`)
@@ -230,8 +261,8 @@ function poet(id) {
      <p><a class="chip" href="#/map">روی نقشه</a> <a class="chip" href="#/sky">در آسمان</a> <a class="chip" href="#/eras">قرن ${item.century}</a></p>
      <h2 class="section">موقعیت اجتماعی</h2>
      <div class="grid">${roles}</div>
-     <h2 class="section">نوار عمر</h2>
-     <div class="grid cards three">${life}</div>
+     <h2 class="section">زندگی‌نامه زمانی</h2>
+     <ol class="ribbon">${life}</ol>
      <h2 class="section">سن‌سنج شعر</h2>
      <p class="muted">جای هر نام، سن تقریبی سرایش روی خط عمر است. عددها آموزشی‌اند.</p>
      <ol class="ages" aria-label="سن شعرها">${poems}</ol>
@@ -244,8 +275,8 @@ function poet(id) {
        <article class="card"><div class="kicker">از این‌ها گرفته</div>${from.map((poet) => `<div><a href="#/poet/${poet.id}">${esc(poet.name)}</a></div>`).join("") || "در این نمونه، سرسلسله است."}</article>
        <article class="card"><div class="kicker">بر این‌ها اثر گذاشته</div>${to.map((poet) => `<div><a href="#/poet/${poet.id}">${esc(poet.name)}</a></div>`).join("") || "در این نمونه ادامه مستقیم ثبت نشده."}</article>
      </div>
-     <h2 class="section">آثار</h2>
-     <div class="grid">${books}</div>`,
+     <h2 class="section">از آثار برجسته</h2>
+     <div class="covers">${books}</div>`,
   );
 }
 
@@ -284,34 +315,38 @@ function poem(poetId, bookId, poemId) {
     .join("");
   page(
     item.title,
-    `<article class="read">
+    `<article class="read stage">
+     <aside class="rail">
+       <a href="#/book/${poet.id}/${bk.id}">فهرست این کتاب</a>
+       <a href="#/poet/${poet.id}">صفحه ${esc(poet.name)}</a>
+       <a href="#/readings">خوانش‌ها</a>
+       <button type="button" id="quiet">اتاق خلوت</button>
+       <button type="button" id="play">خوانش خط‌به‌خط</button>
+       <p class="rail-quote">${esc(item.verses[0]?.text || "")}</p>
+     </aside>
+     <div class="parchment">
      <p class="crumb"><a href="#/poets">شاعران</a> / <a href="#/poet/${poet.id}">${esc(poet.name)}</a> / <a href="#/book/${poet.id}/${bk.id}">${esc(bk.title)}</a></p>
      <h1>${esc(item.title)}</h1>
      <div class="ornament" aria-hidden="true"></div>
-     <p class="muted byline">${esc(poet.name)} · حدود ${item.age} سالگی · ${item.year} · قافیه ${esc(item.rhyme)}</p>
+     <p class="byline">${esc(poet.name)} · ${esc(item.form)}</p>
+     <div class="poem" id="verses"></div>
+     <p class="muted">روی واژه بزن تا آینه باز شود. روی بیت بزن تا شرح همان بیت بیاید.</p>
+     <div class="dock">
+       <button class="btn" id="mark">${marked ? "نشان شد" : "نشان"}</button>
+       <span class="muted">${esc(item.meter)}</span>
+     </div>
+     <aside class="panel" id="side"></aside>
+     ${item.occasion ? `<p class="panel">${esc(item.occasion)}</p>` : ""}
+     ${role ? `<p class="panel"><strong>موقعیت در این سال: </strong>${esc(role.role)}<br>${esc(role.effect)}</p>` : ""}
      <p class="chips">
        ${form ? `<a class="chip" href="#/form/${form.id}">${esc(item.form)}</a>` : ""}
        <a class="chip" href="#/vazn?m=${encodeURIComponent(item.meter)}">${esc(item.meter)}</a>
        ${topics}
      </p>
-     ${item.occasion ? `<p class="panel">${esc(item.occasion)}</p>` : ""}
-     ${role ? `<p class="panel"><strong>موقعیت در این سال: </strong>${esc(role.role)}<br>${esc(role.effect)}</p>` : ""}
-     <div class="row">
-       <button class="btn" id="mark">${marked ? "نشان شد" : "نشان"}</button>
-       <button class="btn primary" id="quiet">اتاق خلوت</button>
-       <button class="btn lapis" id="play">خوانش خط‌به‌خط</button>
-     </div>
-     <div class="layout">
-       <div>
-         <div class="poem" id="verses"></div>
-         <p class="muted" style="text-align:center">روی واژه بزن تا آینه و معنی باز شود. روی بیت بزن تا شرح همان بیت بیاید.</p>
-       </div>
-       <aside class="panel" id="side"></aside>
-     </div>
      <label class="panel block">یادداشت من
        <textarea id="note" rows="4">${esc(saved.notes[item.id] || "")}</textarea>
      </label>
-     ${noteBanner()}
+     </div>
      </article>`,
   );
   let active = 0;
@@ -525,6 +560,29 @@ function discover() {
 }
 
 function bridgesPage() {
+  const spots = {
+    rudaki: [14, 50],
+    ferdowsi: [30, 22],
+    khayyam: [32, 78],
+    saadi: [52, 48],
+    attar: [62, 78],
+    hafez: [74, 24],
+    rumi: [88, 52],
+  };
+  const lines = DATA.bridges
+    .map((bridge) => {
+      const from = spots[bridge.from];
+      const to = spots[bridge.to];
+      if (!from || !to) return "";
+      return `<line x1="${from[0]}" y1="${from[1]}" x2="${to[0]}" y2="${to[1]}" />`;
+    })
+    .join("");
+  const nodes = DATA.poets
+    .map((poet) => {
+      const spot = spots[poet.id] || [50, 50];
+      return `<a class="node" style="left:${spot[0]}%;top:${spot[1]}%" href="#/poet/${poet.id}"><i></i>${esc(poet.name)}</a>`;
+    })
+    .join("");
   const html = DATA.bridges
     .map((bridge) => {
       const from = poetBy(bridge.from);
@@ -532,7 +590,13 @@ function bridgesPage() {
       return `<article class="bridge"><a href="#/poet/${from.id}">${esc(from.name)}</a><span>${esc(bridge.kind)}</span><a href="#/poet/${to.id}">${esc(to.name)}</a><p class="muted">${esc(bridge.note)}</p></article>`;
     })
     .join("");
-  page("پل‌ها", `<h1>پل‌های تأثیر</h1><p class="lead">جهت، از سرچشمه به سمت بعدی است. نسبت‌ها آموزشی‌اند.</p><div class="grid">${html}</div>`);
+  page(
+    "پل‌ها",
+    `<h1>پل‌های تأثیر</h1>
+     <p class="lead">هر خط یک نسبت آموزشی است، از سرچشمه به سمت بعدی.</p>
+     <div class="graph"><svg viewBox="0 0 100 100" aria-hidden="true">${lines}</svg>${nodes}</div>
+     <div class="grid" style="margin-top:16px">${html}</div>`,
+  );
 }
 
 function caravanPage() {
@@ -594,7 +658,7 @@ function search() {
      <p class="lead">${q ? `نتیجه برای «${esc(q)}»` : "نام شاعر، یک واژه، یا تکه‌ای از بیت را بنویس."}</p>
      ${q && !poets.length && !poems.length && !words.length ? `<p>چیزی پیدا نشد.</p>` : ""}
      ${poets.length ? `<h2 class="section">شاعران</h2><div class="grid cards">${poets.map(cardPoet).join("")}</div>` : ""}
-     ${poems.length ? `<h2 class="section">شعرها</h2><div class="grid">${poems.map(cardPoem).join("")}</div>` : ""}
+     ${poems.length ? `<h2 class="section">شعرها</h2><div class="grid">${poems.map((item) => `<a class="hit" href="${poemHref(item)}"><div class="kicker">${esc(item.poet.name)} · ${esc(item.poem.form)}</div><strong>${esc(item.poem.title)}</strong><p>${esc(item.poem.verses[0].text)}</p></a>`).join("")}</div>` : ""}
      ${words.length ? `<h2 class="section">واژه‌ها</h2><div class="grid">${words.map((entry) => `<a class="card" href="#/word/${entry.id}"><strong>${esc(entry.word)}</strong><div class="muted">${esc(entry.meaning)}</div></a>`).join("")}</div>` : ""}`,
   );
 }
@@ -656,6 +720,11 @@ function library() {
     "کتابخانه",
     `<h1>کتابخانه من</h1>
      <p class="lead">نشان، یادداشت و تاریخچه فقط روی همین دستگاه می‌ماند.</p>
+     <div class="stats">
+       <div class="stat"><b>${data.marks.length}</b>نشان</div>
+       <div class="stat"><b>${Object.values(data.notes).filter((text) => String(text).trim()).length}</b>یادداشت</div>
+       <div class="stat"><b>${data.history.length}</b>خوانده‌شده</div>
+     </div>
      <h2 class="section">نشان‌ها</h2>${block(data.marks)}
      <h2 class="section">یادداشت‌ها</h2>${notes || `<p class="muted">یادداشتی نیست.</p>`}
      <h2 class="section">اخیراً خوانده‌ای</h2>${block(data.history)}`,
