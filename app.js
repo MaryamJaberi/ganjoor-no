@@ -1,4 +1,19 @@
 const API = "https://api.ganjoor.net/api/ganjoor";
+const REALM = { minLon: 43, maxLon: 73.5, minLat: 23, maxLat: 47.6 };
+
+function project(lon, lat) {
+  return {
+    x: ((lon - REALM.minLon) / (REALM.maxLon - REALM.minLon)) * 100,
+    y: ((REALM.maxLat - lat) / (REALM.maxLat - REALM.minLat)) * 100,
+  };
+}
+
+function cityOf(poet) {
+  const place = poet.birthPlace || "نامشخص";
+  const name = `${poet.name || ""} ${poet.nickname || ""}`;
+  if (place === "مشهد" && /توس|طوس|فردوسی/.test(name)) return "توس";
+  return place;
+}
 const root = document.querySelector("#content");
 const bar = document.querySelector("#bar");
 const foot = document.querySelector("#foot");
@@ -112,7 +127,7 @@ function lifeBlock(poet) {
     </div>
     <p class="muted">چهره همان عکس گنجور است. جوانی و کهنسالی فقط با رنگ تقریبی است، نقاشی تاریخی نیست. گنجور سال سرودن هر شعر را ندارد.</p>
     <p class="muted" id="journey"></p>
-    <div class="atlas trail" id="trail" hidden></div>
+    <div class="atlas realm trail" id="trail" hidden></div>
     <div class="chips" id="stops"></div>
   </section>`;
 }
@@ -169,10 +184,10 @@ function bindLife(poet, age) {
       const trail = document.querySelector("#trail");
       const spots = [...groups.values()].filter((group) => group.lat && group.lon);
       if (trail && spots.length) {
-        const minLon = 43.423242;
-        const maxLon = 63.905176;
-        const minLat = 24.5021;
-        const maxLat = 40.368555;
+        const minLon = REALM.minLon;
+        const maxLon = REALM.maxLon;
+        const minLat = REALM.minLat;
+        const maxLat = REALM.maxLat;
         trail.hidden = false;
         trail.innerHTML = spots
           .map((group) => {
@@ -701,26 +716,41 @@ async function mapPage(query) {
   if (year < min) year = min;
   if (year > max) year = max;
   const alive = placed.filter((poet) => poet.birthYearInLHijri <= year && poet.deathYearInLHijri >= year);
-  const minLon = 43.423242;
-  const maxLon = 63.905176;
-  const minLat = 24.5021;
-  const maxLat = 40.368555;
-  const showName = alive.length <= 14;
-  const dots = alive
-    .map((poet) => {
-      const x = ((poet.birthPlaceLongitude - minLon) / (maxLon - minLon)) * 100;
-      const y = ((maxLat - poet.birthPlaceLatitude) / (maxLat - minLat)) * 100;
-      if (x < 0 || x > 100 || y < 0 || y > 100) return "";
-      const name = esc(poet.nickname || poet.name);
-      return `<a class="pin" style="left:${x}%;top:${y}%" href="#/poet/${poet.id}" title="${name} · ${esc(poet.birthPlace || "")}">${showName ? `<span>${name}</span>` : ""}<i></i></a>`;
+  const groups = new Map();
+  const far = [];
+  for (const poet of alive) {
+    const point = project(poet.birthPlaceLongitude, poet.birthPlaceLatitude);
+    if (point.x < 0 || point.x > 100 || point.y < 0 || point.y > 100) {
+      far.push(poet);
+      continue;
+    }
+    const city = cityOf(poet);
+    const group = groups.get(city) || { city, x: point.x, y: point.y, poets: [], noted: city === "توس" };
+    group.poets.push(poet);
+    groups.set(city, group);
+  }
+  const showName = groups.size <= 18;
+  const dots = [...groups.values()]
+    .map((group, index) => {
+      const people = group.poets.map((poet) => poet.nickname || poet.name).join("، ");
+      const note = group.noted ? " — گنجور مشهد نوشته" : "";
+      return `<a class="pin" data-city="${index}" style="left:${group.x}%;top:${group.y}%" href="#/map?y=${year}" title="${esc(group.city)}: ${esc(people)}${esc(note)}">${showName ? `<span>${esc(group.city)}</span>` : ""}<i></i></a>`;
     })
+    .join("");
+  const cityList = [...groups.values()]
+    .map(
+      (group, index) =>
+        `<article class="card" id="city-${index}"><strong>${esc(group.city)}</strong>${group.noted ? `<p class="muted">گنجور این زادگاه را مشهد نوشته. در روزگار این شاعران شهر توس بوده، کنار همان نقطه.</p>` : ""}<p class="chips">${group.poets
+          .map((poet) => `<a class="chip" href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>`)
+          .join("")}</p></article>`,
+    )
     .join("");
   const ticks = [];
   for (let mark = Math.ceil(min / 100) * 100; mark < max; mark += 100) ticks.push(mark);
   paint(
     "نقشه",
     `<h1>هم‌عصران</h1>
-     <p class="lead">سال را جابه‌جا کن. نقطه طلایی، زادگاه شاعر است؛ کسانی که آن سال زنده‌اند.</p>
+     <p class="lead">مرز امروز ایران اینجا نیست. سبز خشکی است و لکه روشن دریای خزر. نام شهر، زادگاه ثبت‌شده در گنجور است: از گنجه و تبریز تا هرات، بلخ، بخارا و غزنه.</p>
      <div class="year">
        <div class="year-top"><span>سفر در زمان</span><strong id="year-label">سال ${year} هجری</strong></div>
      <div class="scale">
@@ -728,9 +758,10 @@ async function mapPage(query) {
        <div class="ticks">${ticks.map((mark) => `<span style="left:${((mark - min) / (max - min)) * 100}%">${mark}</span>`).join("")}</div>
      </div>
      </div>
-     <div class="atlas" aria-label="نقشه ایران">${dots || `<p class="muted empty-map">در این سال کسی با زادگاه داخل این نقشه نیست.</p>`}</div>
-     <p class="muted">${alive.length} شاعر در این سال. زادگاه بیرون از ایران فقط در فهرست پایین می‌آید.</p>
-     <div class="chips">${alive.slice(0, 18).map((poet) => `<a class="chip" href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>`).join("")}</div>`,
+     <div class="atlas realm" aria-label="گستره شهرهای شعر فارسی">${dots || `<p class="muted empty-map">در این سال کسی در این گستره نیست.</p>`}</div>
+     <p class="muted">${alive.length} شاعر در این سال، در ${groups.size} شهر این گستره.</p>
+     <div class="grid">${cityList}</div>
+     ${far.length ? `<p class="muted">زادگاه این‌ها دورتر است، در هند یا آناتولی یا شام، و روی این صفحه جا نشده:</p><div class="chips">${far.map((poet) => `<a class="chip" href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)} · ${esc(poet.birthPlace || "")}</a>`).join("")}</div>` : ""}`,
   );
   const slider = document.querySelector("#year");
   const label = document.querySelector("#year-label");
@@ -740,6 +771,12 @@ async function mapPage(query) {
   slider.onchange = () => {
     location.hash = `#/map?y=${slider.value}`;
   };
+  document.querySelectorAll(".pin[data-city]").forEach((pin) => {
+    pin.onclick = (event) => {
+      event.preventDefault();
+      document.getElementById(`city-${pin.dataset.city}`)?.scrollIntoView({ block: "nearest" });
+    };
+  });
 }
 
 async function libraryPage() {
