@@ -137,7 +137,7 @@ h2 { font-size: 1.2rem; margin: 0 0 12px; color: var(--navy); }
   background: none; border: 0; font: inherit; color: var(--navy);
   font-size: clamp(1.25rem, 2.4vw, 1.6rem); line-height: 2.15; padding: 4px 8px; border-radius: 8px;
 }
-.verse.pick { background: #e7f3f0; border-radius: 8px; }
+.verse.pick { background: transparent; box-shadow: inset -3px 0 0 #0a6b60; border-radius: 0; }
 .verse.on { background: #efe4c4; }
 .word { background: none; border: 0; padding: 0 1px; color: inherit; font: inherit; border-bottom: 1px dashed transparent; }
 .word:hover { color: var(--turquoise); border-bottom-color: var(--turquoise); }
@@ -288,7 +288,9 @@ body.quiet .sheet::before, body.quiet .ornament { display: none; }
 .pin:hover span { background: #0a6b60; color: #fffdf8; border-color: #0a6b60; }
 .year-top { display: flex; justify-content: space-between; align-items: baseline; color: #1a2744; }
 .year-top span { color: #0a6b60; font-weight: 700; }
-.ticks { display: flex; justify-content: space-between; color: #5c5348; font-size: 0.78rem; }
+.scale { direction: ltr; }
+.ticks { position: relative; display: block; height: 1.4rem; }
+.ticks span { position: absolute; top: 0; transform: translateX(-50%); color: #5c5348; font-size: 0.78rem; }
 .year input[type="range"] {
   appearance: none;
   -webkit-appearance: none;

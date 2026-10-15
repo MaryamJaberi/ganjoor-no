@@ -211,7 +211,7 @@ function failed(error) {
 function poetFace(poet) {
   const letter = esc((poet.nickname || poet.name || "؟").slice(0, 1));
   const img = poet.imageUrl ? `<img alt="" src="https://api.ganjoor.net${esc(poet.imageUrl)}" onerror="this.remove()" />` : "";
-  const years = poet.birthYearInLHijri ? `${poet.birthYearInLHijri}–${poet.deathYearInLHijri || "؟"}` : "";
+  const years = poet.birthYearInLHijri ? `<bdi dir="ltr">${poet.birthYearInLHijri}–${poet.deathYearInLHijri || "؟"}</bdi>` : "";
   return `<a class="face" href="#/poet/${poet.id}"><span class="medal">${img}<b>${letter}</b></span><strong>${esc(poet.nickname || poet.name)}</strong><small>${esc(poet.birthPlace || "")}${years ? " · " + years : ""}</small></a>`;
 }
 
@@ -309,7 +309,7 @@ async function poetPage(id) {
   paint(
     poet.nickname || poet.name,
     `<p class="crumb"><a href="#/poets">شاعران</a></p>
-     <p class="kicker">${esc(poet.birthPlace || "")} · ${poet.birthYearInLHijri || "؟"} تا ${poet.deathYearInLHijri || "؟"}</p>
+     <p class="kicker">${esc(poet.birthPlace || "")} · <bdi dir="ltr">${poet.birthYearInLHijri || "؟"}–${poet.deathYearInLHijri || "؟"}</bdi></p>
      <h1>${esc(poet.name)}</h1>
      ${lifeBlock(poet)}
      <ol class="ribbon">
@@ -669,8 +669,10 @@ async function mapPage(query) {
      <p class="lead">سال را جابه‌جا کن. نقطه طلایی، زادگاه شاعر است؛ کسانی که آن سال زنده‌اند.</p>
      <div class="year">
        <div class="year-top"><span>سفر در زمان</span><strong id="year-label">سال ${year} هجری</strong></div>
+     <div class="scale">
        <input id="year" type="range" min="${min}" max="${max}" value="${year}" />
-       <div class="ticks">${ticks.map((mark) => `<span>${mark}</span>`).join("")}</div>
+       <div class="ticks">${ticks.map((mark) => `<span style="left:${((mark - min) / (max - min)) * 100}%">${mark}</span>`).join("")}</div>
+     </div>
      </div>
      <div class="atlas" aria-label="نقشه ایران">${dots || `<p class="muted empty-map">در این سال کسی با زادگاه داخل این نقشه نیست.</p>`}</div>
      <p class="muted">${alive.length} شاعر در این سال. زادگاه بیرون از ایران فقط در فهرست پایین می‌آید.</p>
@@ -805,10 +807,15 @@ async function skyPage(query) {
   const centuries = [...new Set(poets.map((poet) => centuryOf(poet.birthYearInLHijri)).filter(Boolean))].sort((a, b) => a - b);
   const century = Number(query.get("c") || 8);
   const list = poets.filter((poet) => centuryOf(poet.birthYearInLHijri) === century);
-  const stars = list
+  const placed = [];
+  const stars = [...list]
+    .sort((a, b) => a.birthYearInLHijri - b.birthYearInLHijri)
     .map((poet) => {
-      const x = ((poet.birthYearInLHijri % 100) / 100) * 86 + 7;
-      const y = ((poet.id * 37) % 78) + 10;
+      const x = ((poet.birthYearInLHijri % 100) / 100) * 76 + 12;
+      let y = 16;
+      while (placed.some((item) => Math.abs(item.x - x) < 16 && Math.abs(item.y - y) < 14)) y += 14;
+      if (y > 86) y = 16 + (placed.length % 4) * 14;
+      placed.push({ x, y });
       return `<a class="star" style="left:${x}%;top:${y}%" href="#/poet/${poet.id}"><i></i>${esc(poet.nickname || poet.name)}</a>`;
     })
     .join("");
