@@ -137,7 +137,8 @@ h2 { font-size: 1.2rem; margin: 0 0 12px; color: var(--navy); }
   background: none; border: 0; font: inherit; color: var(--navy);
   font-size: clamp(1.25rem, 2.4vw, 1.6rem); line-height: 2.15; padding: 4px 8px; border-radius: 8px;
 }
-.verse.on { background: var(--soft); }
+.verse.pick { background: #e7f3f0; border-radius: 8px; }
+.verse.on { background: #efe4c4; }
 .word { background: none; border: 0; padding: 0 1px; color: inherit; font: inherit; border-bottom: 1px dashed transparent; }
 .word:hover { color: var(--turquoise); border-bottom-color: var(--turquoise); }
 .layout { display: grid; gap: 16px; text-align: start; }

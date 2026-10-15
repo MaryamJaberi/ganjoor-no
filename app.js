@@ -48,6 +48,10 @@ function esc(value) {
   return String(value ?? "").replace(/[&<>"]/g, (ch) => map[ch]);
 }
 
+function bare(text) {
+  return String(text).replace(/[\u064B-\u065F\u0670\u0640]/g, "");
+}
+
 function centuryOf(year) {
   if (!year) return 0;
   return Math.floor((year - 1) / 100) + 1;
@@ -107,6 +111,8 @@ async function home() {
          <p class="chips">
            <a class="chip" href="#/poets">همه شاعران</a>
            <a class="chip" href="#/map">نقشه هم‌عصران</a>
+           <a class="chip" href="#/sky">آسمان قرن‌ها</a>
+           <a class="chip" href="#/discover">کشف</a>
            <button class="chip" id="random" type="button">یک شعر تصادفی</button>
          </p>
        </div>
@@ -182,6 +188,11 @@ async function poetPage(id) {
     `<p class="crumb"><a href="#/poets">شاعران</a></p>
      <p class="kicker">${esc(poet.birthPlace || "")} · ${poet.birthYearInLHijri || "؟"} تا ${poet.deathYearInLHijri || "؟"}</p>
      <h1>${esc(poet.name)}</h1>
+     <ol class="ribbon">
+       <li class="seg s0"><strong>${poet.birthYearInLHijri || "؟"}</strong><span>زاده ${esc(poet.birthPlace || "جای نامشخص")}</span></li>
+       <li class="seg s1"><strong>${poet.deathYearInLHijri && poet.birthYearInLHijri ? poet.deathYearInLHijri - poet.birthYearInLHijri : "؟"} سال</strong><span>فاصله زادروز تا درگذشت</span></li>
+       <li class="seg s2"><strong>${poet.deathYearInLHijri || "؟"}</strong><span>درگذشت ${esc(poet.deathPlace || poet.birthPlace || "")}</span></li>
+     </ol>
      <div class="bio" id="bio">${esc(poet.description || "")}</div>
      <button class="btn" id="more" type="button">ادامه شرح</button>
      <p class="chips">
@@ -222,12 +233,20 @@ async function catPage(id, query) {
 
 function linesOf(poem) {
   const verses = [...(poem.verses || [])].sort((a, b) => a.vOrder - b.vOrder);
-  if (verses.length) return verses.map((verse) => ({ order: verse.vOrder, text: verse.text, end: verse.versePosition === 1 || verse.versePosition === 3 }));
+  if (verses.length) {
+    return verses.map((verse) => ({
+      order: verse.vOrder,
+      text: verse.text,
+      end: verse.versePosition === 1 || verse.versePosition === 3,
+      couplet: verse.coupletIndex,
+      summary: verse.coupletSummary || "",
+    }));
+  }
   return String(poem.plainText || "")
     .split(/\r?\n/)
     .map((text) => text.trim())
     .filter(Boolean)
-    .map((text, index) => ({ order: index, text, end: index % 2 === 1 }));
+    .map((text, index) => ({ order: index, text, end: index % 2 === 1, couplet: Math.floor(index / 2), summary: "" }));
 }
 
 function words(text) {
@@ -249,6 +268,11 @@ async function poemPage(id, query) {
   const poet = poem.category?.poet || {};
   const recitations = poem.recitations || [];
   const lines = linesOf(poem);
+  const section = (poem.sections || [])[0] || {};
+  const metre = section.ganjoorMetre;
+  const rhyme = section.rhymeLetters || "";
+  const quotes = (poem.top6QuotedPoems || []).filter((item) => item.published !== false && item.relatedPoemId);
+  const related = section.top6RelatedSections || [];
   const quiet = query.get("quiet") === "1";
   paint(
     poem.title,
@@ -265,13 +289,33 @@ async function poemPage(id, query) {
          <h1>${esc(poem.title)}</h1>
          <div class="ornament" aria-hidden="true"></div>
          <p class="byline">${esc(poet.name || "")}</p>
-         <div class="poem" id="verses">${lines.map((line) => `<p class="verse ${line.end ? "end" : ""}" data-order="${line.order}">${words(line.text)}</p>`).join("")}</div>
+         <p class="chips">
+           ${metre ? `<a class="chip" href="#/vazn?id=${metre.id}">${esc(metre.rhythm)}</a>` : ""}
+           ${rhyme ? `<span class="chip">قافیه ${esc(rhyme)}</span>` : ""}
+         </p>
+         <div class="poem" id="verses">${lines
+           .map(
+             (line) =>
+               `<p class="verse ${line.end ? "end" : ""}" data-order="${line.order}" data-couplet="${line.couplet}">${words(line.text)}</p>`,
+           )
+           .join("")}</div>
+         <p class="muted">روی بیت بزن تا شرحش بیاید. روی واژه بزن تا در شعرهای دیگر پیدا شود.</p>
          <div class="dock">
            <button class="btn" id="mark" type="button">${marked ? "نشان شد" : "نشان"}</button>
            <button class="btn primary" id="quiet" type="button">${quiet ? "بازگشت" : "اتاق خلوت"}</button>
            ${poem.previous ? `<a class="btn" href="#/poem/${poem.previous.id}">قبلی</a>` : ""}
            ${poem.next ? `<a class="btn" href="#/poem/${poem.next.id}">بعدی</a>` : ""}
          </div>
+         <aside class="panel" id="side">
+           <div class="tabs" id="tabs">
+             <button class="chip on" type="button" data-tab="mean">معنی</button>
+             <button class="chip" type="button" data-tab="quote">تضمین</button>
+             <button class="chip" type="button" data-tab="music">موسیقی</button>
+             <button class="chip" type="button" data-tab="margin">حاشیه</button>
+             <button class="chip" type="button" data-tab="mirror">آینه واژه</button>
+           </div>
+           <div id="pane"></div>
+         </aside>
          ${
            recitations.length
              ? `<div class="panel player">
@@ -286,11 +330,111 @@ async function poemPage(id, query) {
      </article>`,
     quiet,
   );
-  document.querySelector("#verses").onclick = (event) => {
-    const word = event.target.closest(".word");
-    if (!word) return;
-    location.hash = `#/search?q=${encodeURIComponent(word.textContent || "")}`;
+  let tab = "mean";
+  let activeCouplet = lines[0]?.couplet ?? 0;
+  const pane = document.querySelector("#pane");
+  function markCouplet() {
+    document.querySelectorAll(".verse").forEach((node) => node.classList.toggle("pick", Number(node.dataset.couplet) === activeCouplet));
+  }
+  function summaryOf(index) {
+    return lines.find((line) => line.couplet === index && line.summary)?.summary || "";
+  }
+  async function renderPane() {
+    document.querySelectorAll("#tabs .chip").forEach((node) => node.classList.toggle("on", node.dataset.tab === tab));
+    if (tab === "mean") {
+      pane.innerHTML = `<p>${esc(summaryOf(activeCouplet) || poem.poemSummary || "شرح این بیت در گنجور ثبت نشده.")}</p>`;
+      return;
+    }
+    if (tab === "quote") {
+      const blocks = quotes
+        .map(
+          (item) =>
+            `<a class="hit" href="#/poem/${item.relatedPoemId}"><div class="kicker">${esc(item.cachedRelatedPoemPoetName || "")}</div><strong>${esc(item.relatedCoupletVerse2 || item.cachedRelatedPoemFullTitle || "")}</strong><p>${esc(item.coupletVerse1 || "")}</p></a>`,
+        )
+        .concat(
+          related.map(
+            (item) =>
+              `<a class="hit" href="#/poem/${item.targetPoemId}"><div class="kicker">استقبال · ${esc(item.poetName || "")}</div><strong>${esc(item.fullTitle || "")}</strong></a>`,
+          ),
+        );
+      pane.innerHTML = blocks.length ? blocks.join("") : `<p class="muted">تضمین یا استقبالی برای این شعر ثبت نشده.</p>`;
+      return;
+    }
+    if (tab === "mirror") {
+      pane.innerHTML = `<p class="muted">یک واژه از شعر را بزن.</p>`;
+      return;
+    }
+    pane.innerHTML = `<p class="muted">می‌آورم…</p>`;
+    try {
+      if (tab === "music") {
+        const { data } = await api(`/poem/${poem.id}?songs=true&verseDetails=false&recitations=false&comments=false&images=false&navigation=false&catInfo=false`);
+        const songs = data.songs || [];
+        pane.innerHTML = songs.length
+          ? songs
+              .slice(0, 8)
+              .map(
+                (song) =>
+                  `<p><a href="${esc(song.trackUrl)}" rel="noreferrer">${esc(song.artistName || "قطعه")} — ${esc(song.trackName || song.albumName || "")}</a></p>`,
+              )
+              .join("")
+          : `<p class="muted">قطعه موسیقی ثبت نشده.</p>`;
+      }
+      if (tab === "margin") {
+        const { data } = await api(`/poem/${poem.id}?comments=true&verseDetails=false&recitations=false&songs=false&images=false&navigation=false&catInfo=false`);
+        const comments = (data.comments || [])
+          .filter((item) => item.coupletIndex === -1 || item.coupletIndex === activeCouplet)
+          .slice(0, 6);
+        const rows = comments
+          .map((item) => {
+            const box = document.createElement("div");
+            box.innerHTML = item.htmlComment || "";
+            return `<article class="card"><div class="kicker">${esc(item.authorName || "خواننده")}</div><p>${esc(box.textContent || "")}</p></article>`;
+          })
+          .join("");
+        pane.innerHTML =
+          (rows || `<p class="muted">حاشیه‌ای برای این بیت نیست.</p>`) +
+          `<p><a href="https://ganjoor.net${esc(poem.fullUrl)}" rel="noreferrer">نوشتن حاشیه در گنجور</a></p>`;
+      }
+    } catch (error) {
+      pane.innerHTML = `<p class="muted">این بخش نیامد. ${esc(error.message)}</p>`;
+    }
+  }
+  document.querySelector("#tabs").onclick = (event) => {
+    const button = event.target.closest("[data-tab]");
+    if (!button) return;
+    tab = button.dataset.tab;
+    renderPane();
   };
+  document.querySelector("#verses").onclick = async (event) => {
+    const word = event.target.closest(".word");
+    const verse = event.target.closest(".verse");
+    if (!verse) return;
+    activeCouplet = Number(verse.dataset.couplet);
+    markCouplet();
+    if (word) {
+      tab = "mirror";
+      const term = bare(word.textContent || "");
+      pane.innerHTML = `<p class="muted">می‌گردم…</p>`;
+      document.querySelectorAll("#tabs .chip").forEach((node) => node.classList.toggle("on", node.dataset.tab === "mirror"));
+      try {
+        const { data, total } = await api(`/poems/search?term=${encodeURIComponent(term)}&pageNumber=1&pageSize=5`);
+        const hits = (Array.isArray(data) ? data : [])
+          .map((item) => {
+            const first = String(item.plainText || "").split(/\r?\n/).find((line) => line.trim()) || "";
+            return `<a class="hit" href="#/poem/${item.id}"><strong>${esc(item.title)}</strong><p>${esc(first)}</p></a>`;
+          })
+          .join("");
+        pane.innerHTML = `<p>واژه «${esc(term)}»${total ? ` در ${total} شعر` : ""}</p>${hits}<p><a href="#/search?q=${encodeURIComponent(term)}">همه نتیجه‌ها</a></p>`;
+      } catch (error) {
+        pane.innerHTML = `<p class="muted">${esc(error.message)}</p>`;
+      }
+      return;
+    }
+    tab = "mean";
+    renderPane();
+  };
+  markCouplet();
+  renderPane();
   document.querySelector("#mark").onclick = (event) => {
     store.toggle(poem.id);
     event.currentTarget.textContent = store.get().marks.includes(poem.id) ? "نشان شد" : "نشان";
@@ -454,6 +598,66 @@ function aboutPage() {
   );
 }
 
+async function skyPage(query) {
+  loading("آسمان");
+  const { data: poets } = await api("/poets");
+  const centuries = [...new Set(poets.map((poet) => centuryOf(poet.birthYearInLHijri)).filter(Boolean))].sort((a, b) => a - b);
+  const century = Number(query.get("c") || 8);
+  const list = poets.filter((poet) => centuryOf(poet.birthYearInLHijri) === century);
+  const stars = list
+    .map((poet) => {
+      const x = ((poet.birthYearInLHijri % 100) / 100) * 86 + 7;
+      const y = ((poet.id * 37) % 78) + 10;
+      return `<a class="star" style="left:${x}%;top:${y}%" href="#/poet/${poet.id}"><i></i>${esc(poet.nickname || poet.name)}</a>`;
+    })
+    .join("");
+  paint(
+    "آسمان",
+    `<h1>آسمان شعر</h1>
+     <p class="lead">هر ستاره یک شاعر این قرن است. جای افقی، سال تولد در همان قرن است.</p>
+     <div class="cents">${centuries.map((item) => `<a class="cent ${item === century ? "on" : ""}" href="#/sky?c=${item}">قرن ${item}</a>`).join("")}</div>
+     <div class="sky">${stars || `<p class="muted">در این قرن شاعری نیست.</p>`}</div>`,
+  );
+}
+
+async function vaznPage(query) {
+  loading("وزن");
+  const { data } = await api("/rhythms");
+  const selected = Number(query.get("id") || 0);
+  const rhythms = [...data].sort((a, b) => b.verseCount - a.verseCount);
+  const current = rhythms.find((item) => item.id === selected);
+  paint(
+    "وزن",
+    `<h1>وزن‌ها</h1>
+     <p class="lead">نام وزن از گنجور است. عدد، شمار مصراع‌های ثبت‌شده در آن وزن است.</p>
+     ${current ? `<p class="panel"><strong>${esc(current.rhythm)}</strong><br><span class="muted">${current.verseCount} مصراع</span></p>` : ""}
+     <div class="grid">${rhythms
+       .slice(0, 24)
+       .map(
+         (item) =>
+           `<a class="card ${item.id === selected ? "soft" : ""}" href="#/vazn?id=${item.id}"><strong>${esc(item.rhythm)}</strong><div class="muted">${item.verseCount} مصراع</div></a>`,
+       )
+       .join("")}</div>`,
+  );
+}
+
+function discoverPage() {
+  const tools = [
+    ["#/map", "نقشه هم‌عصران", "سال را جابه‌جا کن و زادگاه شاعران زنده را ببین."],
+    ["#/sky", "آسمان قرن", "شاعران هر قرن، مثل ستاره."],
+    ["#/vazn", "وزن‌ها", "بحر و شمار مصراع، از خود گنجور."],
+    ["#/search", "جستجو", "واژه یا تکه‌ای از بیت در همه شعرها."],
+    ["#/poets", "شاعران", "فهرست کامل شاعران منتشرشده."],
+  ];
+  paint(
+    "کشف",
+    `<h1>کشف</h1>
+     <p class="lead">راه‌های دیدن گنجینه، غیر از خواندن خطی.</p>
+     <div class="grid cards">${tools.map(([href, title, text]) => `<a class="card" href="${href}"><strong>${title}</strong><div class="muted">${text}</div></a>`).join("")}</div>
+     <p class="note">تضمین، استقبال، شرح بیت، حاشیه و موسیقی داخل صفحه هر شعر است. روی بیت یا واژه بزن.</p>`,
+  );
+}
+
 async function render() {
   if (audioNode) {
     audioNode.pause();
@@ -481,6 +685,9 @@ async function render() {
     else if (parts[0] === "poem" && parts[1]) await poemPage(parts[1], query);
     else if (parts[0] === "search") await searchPage(query);
     else if (parts[0] === "map") await mapPage(query);
+    else if (parts[0] === "sky") await skyPage(query);
+    else if (parts[0] === "vazn") await vaznPage(query);
+    else if (parts[0] === "discover") discoverPage();
     else if (parts[0] === "library") await libraryPage();
     else if (parts[0] === "about") aboutPage();
     else paint("نیست", `<h1>این صفحه نیست</h1><p><a href="#/">خانه</a></p>`);
