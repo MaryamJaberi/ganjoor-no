@@ -208,6 +208,18 @@ function failed(error) {
   paint("خطا", `<h1>ارتباط برقرار نشد</h1><p>گنجور الان جواب نداد. اتصال را بررسی کن و دوباره باز کن.</p><p class="muted">${esc(error.message)}</p>`);
 }
 
+function opening(poem) {
+  if (!poem?.id) return "";
+  const lines = String(poem.plainText || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+  if (!lines.length) return "";
+  const poet = poem.category?.poet;
+  return `<h2 class="section">برای شروع</h2><a class="opening" href="#/poem/${poem.id}"><div class="kicker">${esc(poet?.nickname || poet?.name || "")}</div>${lines.map((line) => `<p>${esc(line)}</p>`).join("")}<span class="muted">${esc(poem.title || "")}</span></a>`;
+}
+
 function poetFace(poet) {
   const letter = esc((poet.nickname || poet.name || "؟").slice(0, 1));
   const img = poet.imageUrl ? `<img alt="" src="https://api.ganjoor.net${esc(poet.imageUrl)}" onerror="this.remove()" />` : "";
@@ -217,7 +229,10 @@ function poetFace(poet) {
 
 async function home() {
   loading("خانه");
-  const { data: poets } = await api("/poets");
+  const [{ data: poets }, bit] = await Promise.all([
+    api("/poets"),
+    fetch(`${API}/poem/random?poetId=2`).then((response) => (response.ok ? response.json() : null)).catch(() => null),
+  ]);
   const pinned = [...poets].filter((poet) => poet.pinOrder).sort((a, b) => a.pinOrder - b.pinOrder).slice(0, 10);
   const centuries = [...new Set(poets.map((poet) => centuryOf(poet.birthYearInLHijri)).filter(Boolean))].sort((a, b) => a - b);
   paint(
@@ -243,6 +258,7 @@ async function home() {
      </section>
      <h2 class="section">شاعران برجسته</h2>
      <div class="faces">${pinned.map(poetFace).join("")}</div>
+     ${opening(bit)}
      <h2 class="section">پیمایش بر اساس قرن</h2>
      <div class="cents">${centuries.map((item) => `<a class="cent" href="#/poets?c=${item}">قرن ${item}</a>`).join("")}</div>
      <p class="note">متن و صوت از <a href="https://ganjoor.net" rel="noreferrer">گنجور</a> می‌آید. این سایت رسمی گنجور نیست؛ طراحی و ساختش با مریم جابری است.</p>`,
@@ -318,16 +334,17 @@ async function poetPage(id) {
        <li class="seg s2"><strong>${poet.deathYearInLHijri || "؟"}</strong><span>درگذشت ${esc(poet.deathPlace || poet.birthPlace || "")}</span></li>
      </ol>
      <div class="bio" id="bio">${esc(poet.description || "")}</div>
-     <button class="btn" id="more" type="button">ادامه شرح</button>
+     ${(poet.description || "").length > 320 ? `<button class="btn" id="more" type="button">ادامه شرح</button>` : ""}
      <p class="chips">
+       ${children[0] ? `<a class="btn primary" href="#/cat/${children[0].id}">شروع از ${esc(children[0].title)}</a>` : ""}
        <a class="chip" href="https://ganjoor.net${esc(poet.fullUrl)}" rel="noreferrer">در گنجور</a>
-       ${poet.birthPlaceLatitude ? `<a class="chip" href="#/map?y=${poet.birthYearInLHijri || 700}">روی نقشه</a>` : ""}
+       ${poet.birthYearInLHijri ? `<a class="chip" href="#/map?y=${Math.round(((poet.birthYearInLHijri || 0) + (poet.deathYearInLHijri || poet.birthYearInLHijri)) / 2)}">هم‌عصران این سال‌ها</a>` : ""}
        <a class="chip" href="#/bridges/${poet.id}">پل‌های ثبت‌شده</a>
      </p>
      ${books ? `<h2 class="section">آثار</h2><div class="covers">${books}</div>` : ""}
      ${loose ? `<h2 class="section">شعرها</h2><div class="grid">${loose}</div>` : ""}`,
   );
-  document.querySelector("#more").onclick = () => document.querySelector("#bio").classList.toggle("open");
+  document.querySelector("#more")?.addEventListener("click", () => document.querySelector("#bio").classList.toggle("open"));
   const age = document.querySelector("#age");
   if (age) bindLife(poet, age);
 }
@@ -401,48 +418,55 @@ async function poemPage(id, query) {
   const quotes = (poem.top6QuotedPoems || []).filter((item) => item.published !== false && item.relatedPoemId);
   const related = section.top6RelatedSections || [];
   const quiet = query.get("quiet") === "1";
+  const count = section.coupletsCount || poem.coupletsCount;
+  const brief = String(poem.poemSummary || "");
   paint(
     poem.title,
     `<article class="read stage">
-       <aside class="rail">
-         ${poet.id ? `<a href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>` : ""}
-         ${cat.id ? `<a href="#/cat/${cat.id}">فهرست ${esc(cat.title || "")}</a>` : ""}
-         <a href="https://ganjoor.net${esc(poem.fullUrl)}" rel="noreferrer">متن در گنجور</a>
-         ${poem.previous ? `<a href="#/poem/${poem.previous.id}">قبلی</a>` : ""}
-         ${poem.next ? `<a href="#/poem/${poem.next.id}">بعدی</a>` : ""}
-       </aside>
        <div class="parchment">
          <p class="crumb">${poet.id ? `<a href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>` : ""} ${cat.id ? `/ <a href="#/cat/${cat.id}">${esc(cat.title)}</a>` : ""}</p>
          <h1>${esc(poem.title)}</h1>
          <div class="ornament" aria-hidden="true"></div>
          <p class="byline">${esc(poet.name || "")}</p>
          <p class="chips">
+           ${count ? `<span class="chip">${count} بیت</span>` : ""}
            ${metre ? `<a class="chip" href="#/vazn?id=${metre.id}">${esc(metre.rhythm)}</a>` : ""}
            ${rhyme ? `<span class="chip">قافیه ${esc(rhyme)}</span>` : ""}
+           ${poem.sourceName ? `<span class="chip">منبع: ${esc(poem.sourceName)}</span>` : ""}
          </p>
+         ${brief ? `<p class="lead summary">${esc(brief.length > 220 ? `${brief.slice(0, 220)}…` : brief)}</p>` : ""}
          <div class="poem" id="verses">${lines
            .map(
              (line) =>
                `<p class="verse ${line.end ? "end" : ""}" data-order="${line.order}" data-couplet="${line.couplet}">${words(line.text)}</p>`,
            )
            .join("")}</div>
-         <p class="muted">روی بیت بزن تا شرحش بیاید. روی واژه بزن تا در شعرهای دیگر پیدا شود.</p>
+         <p class="muted">روی بیت بزن تا شرح همان بیت بیاید. روی واژه بزن تا در شعرهای دیگر پیدا شود.</p>
          <div class="dock">
            <button class="btn" id="mark" type="button">${marked ? "نشان شد" : "نشان"}</button>
            <button class="btn primary" id="quiet" type="button">${quiet ? "بازگشت" : "اتاق خلوت"}</button>
            ${poem.previous ? `<a class="btn" href="#/poem/${poem.previous.id}">قبلی</a>` : ""}
            ${poem.next ? `<a class="btn" href="#/poem/${poem.next.id}">بعدی</a>` : ""}
          </div>
-         <aside class="panel" id="side">
+       </div>
+       <aside class="tools">
+         <nav class="rail">
+           ${poet.id ? `<a href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>` : ""}
+           ${cat.id ? `<a href="#/cat/${cat.id}">فهرست ${esc(cat.title || "")}</a>` : ""}
+           <a href="https://ganjoor.net${esc(poem.fullUrl)}" rel="noreferrer">متن در گنجور</a>
+           ${poem.previous ? `<a href="#/poem/${poem.previous.id}">قبلی</a>` : ""}
+           ${poem.next ? `<a href="#/poem/${poem.next.id}">بعدی</a>` : ""}
+         </nav>
+         <div class="panel" id="side">
            <div class="tabs" id="tabs">
              <button class="chip on" type="button" data-tab="mean">معنی</button>
-             <button class="chip" type="button" data-tab="quote">تضمین</button>
+             <button class="chip" type="button" data-tab="quote">تضمین${quotes.length + related.length ? ` ${quotes.length + related.length}` : ""}</button>
              <button class="chip" type="button" data-tab="music">موسیقی</button>
              <button class="chip" type="button" data-tab="margin">حاشیه</button>
-             <button class="chip" type="button" data-tab="mirror">آینه واژه</button>
+             <button class="chip" type="button" data-tab="mirror">آینه</button>
            </div>
            <div id="pane"></div>
-         </aside>
+         </div>
          ${
            recitations.length
              ? `<div class="panel player">
@@ -453,7 +477,7 @@ async function poemPage(id, query) {
              : `<p class="muted">برای این شعر در گنجور خوانش ثبت نشده.</p>`
          }
          <label class="panel block">یادداشت من <textarea id="note" rows="4">${esc(saved.notes[poem.id] || "")}</textarea></label>
-       </div>
+       </aside>
      </article>`,
     quiet,
   );
@@ -603,7 +627,11 @@ async function poemPage(id, query) {
       const now = player.currentTime * 1000;
       let order = times[0].order;
       for (const mark of times) if (mark.at <= now) order = mark.order;
-      document.querySelectorAll(".verse").forEach((node) => node.classList.toggle("on", Number(node.dataset.order) === order));
+      document.querySelectorAll(".verse").forEach((node) => {
+        const on = Number(node.dataset.order) === order;
+        if (on && !node.classList.contains("on")) node.scrollIntoView({ block: "nearest" });
+        node.classList.toggle("on", on);
+      });
     };
     loadSync(recitations[0]);
   }
@@ -621,7 +649,12 @@ async function searchPage(query) {
   const { data, total } = await api(`/poems/search?term=${encodeURIComponent(q)}&pageNumber=${pageNo}&pageSize=8`);
   const rows = (Array.isArray(data) ? data : [])
     .map((poem) => {
-      const first = String(poem.plainText || "").split(/\r?\n/).find((line) => line.trim()) || "";
+      const first = String(poem.plainText || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 2)
+        .join(" / ");
       const poet = poem.category?.poet;
       return `<a class="hit" href="#/poem/${poem.id}"><div class="kicker">${esc(poet?.nickname || poet?.name || "")}</div><strong>${esc(poem.fullTitle || poem.title)}</strong><p>${esc(first)}</p></a>`;
     })
