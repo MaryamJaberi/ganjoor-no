@@ -85,6 +85,8 @@ async function placesOnVerses(poet) {
       year: item.LunarYear,
       place: place.Name,
       poemId: item.PoemId,
+      lat: place.Latitude,
+      lon: place.Longitude,
       verified: Boolean(item.VerifiedDate),
     });
   }
@@ -110,6 +112,7 @@ function lifeBlock(poet) {
     </div>
     <p class="muted">چهره همان عکس گنجور است. جوانی و کهنسالی فقط با رنگ تقریبی است، نقاشی تاریخی نیست. گنجور سال سرودن هر شعر را ندارد.</p>
     <p class="muted" id="journey"></p>
+    <div class="atlas trail" id="trail" hidden></div>
     <div class="chips" id="stops"></div>
   </section>`;
 }
@@ -149,7 +152,7 @@ function bindLife(poet, age) {
       const outside = stops.filter((stop) => stop.year < birth || stop.year > poet.deathYearInLHijri);
       const groups = new Map();
       for (const stop of inside) {
-        const group = groups.get(stop.place) || { place: stop.place, years: [], poemId: stop.poemId };
+        const group = groups.get(stop.place) || { place: stop.place, years: [], poemId: stop.poemId, lat: stop.lat, lon: stop.lon };
         group.years.push(stop.year);
         groups.set(stop.place, group);
       }
@@ -163,6 +166,23 @@ function bindLife(poet, age) {
           .join("") +
         (outside.length ? `<p class="muted">سال‌هایی روی بیت هست که بیرون عمر ثبت‌شده است و اینجا به‌عنوان سفر حساب نشد.</p>` : "");
       journey.textContent = "این سال‌ها و شهرها برچسب گنجور روی بیت است، نه سفرنامه کامل. منبع هر کدام همان شعر است.";
+      const trail = document.querySelector("#trail");
+      const spots = [...groups.values()].filter((group) => group.lat && group.lon);
+      if (trail && spots.length) {
+        const minLon = 43.423242;
+        const maxLon = 63.905176;
+        const minLat = 24.5021;
+        const maxLat = 40.368555;
+        trail.hidden = false;
+        trail.innerHTML = spots
+          .map((group) => {
+            const x = ((group.lon - minLon) / (maxLon - minLon)) * 100;
+            const y = ((maxLat - group.lat) / (maxLat - minLat)) * 100;
+            if (x < 0 || x > 100 || y < 0 || y > 100) return "";
+            return `<a class="pin" style="left:${x}%;top:${y}%" href="#/poem/${group.poemId}"><span>${esc(group.place)}</span><i></i></a>`;
+          })
+          .join("");
+      }
       paintAge();
     })
     .catch(() => {});
@@ -568,14 +588,15 @@ async function poemPage(id, query) {
       pane.innerHTML = `<p class="muted">می‌گردم…</p>`;
       document.querySelectorAll("#tabs .chip").forEach((node) => node.classList.toggle("on", node.dataset.tab === "mirror"));
       try {
-        const { data, total } = await api(`/poems/search?term=${encodeURIComponent(term)}&pageNumber=1&pageSize=5`);
+        const poetFilter = poet.id ? `&poetId=${poet.id}` : "";
+        const { data, total } = await api(`/poems/search?term=${encodeURIComponent(term)}&pageNumber=1&pageSize=5${poetFilter}`);
         const hits = (Array.isArray(data) ? data : [])
           .map((item) => {
             const first = String(item.plainText || "").split(/\r?\n/).find((line) => line.trim()) || "";
             return `<a class="hit" href="#/poem/${item.id}"><strong>${esc(item.title)}</strong><p>${esc(first)}</p></a>`;
           })
           .join("");
-        pane.innerHTML = `<p>واژه «${esc(term)}»${total ? ` در ${total} شعر` : ""}</p>${hits}<p><a href="#/search?q=${encodeURIComponent(term)}">همه نتیجه‌ها</a></p>`;
+        pane.innerHTML = `<p>واژه «${esc(term)}» در آثار ${esc(poet.nickname || poet.name || "این شاعر")}${total ? `، ${total} شعر` : ""}</p>${hits || `<p class="muted">در آثار همین شاعر نیامد.</p>`}<p><a href="#/search?q=${encodeURIComponent(term)}">در همه گنجور</a></p>`;
       } catch (error) {
         pane.innerHTML = `<p class="muted">${esc(error.message)}</p>`;
       }
@@ -754,7 +775,7 @@ async function libraryPage() {
      <div class="stats"><div class="stat"><b>${data.marks.length}</b>نشان</div><div class="stat"><b>${notes.length}</b>یادداشت</div><div class="stat"><b>${data.history.length}</b>خوانده‌شده</div></div>
      <h2 class="section">نشان‌ها</h2>${marksHtml}
      <h2 class="section">یادداشت‌ها</h2>${noteHtml}
-     <h2 class="section">اخیراً</h2>${historyHtml}`,
+     <h2 class="section">خاطره‌نگار</h2>${historyHtml}`,
   );
 }
 
@@ -815,11 +836,23 @@ async function bridgesPage(id) {
     }),
   );
   const rows = [...links.values()].sort((a, b) => b.n - a.n);
+  const ring = rows.slice(0, 6).map((row, index, list) => {
+    const angle = (Math.PI * 2 * index) / list.length - Math.PI / 2;
+    return { ...row, x: 50 + Math.cos(angle) * 34, y: 48 + Math.sin(angle) * 32 };
+  });
+  const graph = ring.length
+    ? `<div class="graph" aria-hidden="false"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${ring
+        .map((row) => `<line x1="50" y1="48" x2="${row.x}" y2="${row.y}" />`)
+        .join("")}</svg><a class="node" style="left:50%;top:48%" href="#/poet/${poet.id}"><i></i>${esc(poet.nickname || poet.name)}</a>${ring
+        .map((row) => `<a class="node" style="left:${row.x}%;top:${row.y}%" href="#/poem/${row.poemId}"><i></i>${esc(row.name)}</a>`)
+        .join("")}</div>`
+    : "";
   paint(
     "پل‌ها",
     `<p class="crumb"><a href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a></p>
      <h1>پل‌های ثبت‌شده</h1>
-     <p class="lead">این‌ها شاعرانی‌اند که در نمونه شعرهای ${esc(poet.nickname || poet.name)}، گنجور تضمین یا استقبال ثبت کرده. منبع هر کارت همان شعر است. این فهرست همه دیوان نیست و تأثیر زندگی را ثابت نمی‌کند.</p>
+     <p class="lead">خط‌ها تضمین یا استقبال ثبت‌شده در گنجور است، از نمونه‌ای از شعرها. ضخامت یکسان است چون شدت تأثیر در داده نیست. کلیک، شعر منبع را باز می‌کند.</p>
+     ${graph}
      ${
        rows.length
          ? `<div class="grid">${rows
@@ -831,6 +864,32 @@ async function bridgesPage(id) {
          : `<p>در این نمونه، تضمین یا استقبالی ثبت نشده.</p>`
      }
      <p><a class="chip" href="#/poet/${poet.id}">بازگشت به شاعر</a></p>`,
+  );
+}
+
+async function treePage() {
+  loading("درخت");
+  const { data: poets } = await api("/poets");
+  const pick = (name) => poets.find((poet) => `${poet.nickname || ""} ${poet.name || ""}`.includes(name));
+  const limb = (title, names) => {
+    const leaves = names
+      .map((name) => pick(name))
+      .filter(Boolean)
+      .map((poet) => `<a href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>`)
+      .join("");
+    return `<section class="limb"><h2>${title}</h2><div class="leaves">${leaves}</div></section>`;
+  };
+  paint(
+    "درخت",
+    `<h1>درخت خواندن</h1>
+     <p class="lead">این نقشه برای شروع خواندن است: کدام نام را در کدام قالب پیدا کنی. خط خویشاوندی یا تأثیر نیست و منبعش سلیقه خواندن است، نه یک سند گنجور.</p>
+     <div class="grove">
+       ${limb("ریشه", ["رودکی", "فردوسی"])}
+       ${limb("غزل", ["حافظ", "سعدی"])}
+       ${limb("مثنوی", ["مولانا", "نظامی"])}
+       ${limb("رباعی", ["خیام"])}
+       ${limb("عرفان", ["عطار", "مولانا"])}
+     </div>`,
   );
 }
 
@@ -885,8 +944,10 @@ async function vaznPage(query) {
 function discoverPage() {
   const tools = [
     ["#/map", "نقشه هم‌عصران", "سال را جابه‌جا کن و زادگاه شاعران زنده را ببین."],
-    ["#/sky", "آسمان قرن", "شاعران هر قرن، مثل ستاره."],
+    ["#/sky", "آسمان شب", "شاعران هر قرن، ستاره‌هایی روی لاجورد."],
+    ["#/tree", "درخت خواندن", "غزل، مثنوی، رباعی و عرفان؛ نقشه خواندن است نه سند تأثیر."],
     ["#/vazn", "وزن‌ها", "بحر و شمار مصراع، از خود گنجور."],
+    ["#/library", "خاطره‌نگار", "شعرهایی که خوانده‌ای یا نشان کرده‌ای، روی همین دستگاه."],
     ["#/search", "جستجو", "واژه یا تکه‌ای از بیت در همه شعرها."],
     ["#/poets", "شاعران", "فهرست کامل شاعران منتشرشده."],
   ];
@@ -928,6 +989,7 @@ async function render() {
     else if (parts[0] === "search") await searchPage(query);
     else if (parts[0] === "map") await mapPage(query);
     else if (parts[0] === "sky") await skyPage(query);
+    else if (parts[0] === "tree") await treePage();
     else if (parts[0] === "vazn") await vaznPage(query);
     else if (parts[0] === "discover") discoverPage();
     else if (parts[0] === "library") await libraryPage();
