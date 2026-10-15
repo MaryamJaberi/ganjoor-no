@@ -520,30 +520,39 @@ async function mapPage(query) {
   if (year < min) year = min;
   if (year > max) year = max;
   const alive = placed.filter((poet) => poet.birthYearInLHijri <= year && poet.deathYearInLHijri >= year);
-  const minLat = 24;
-  const maxLat = 42;
-  const minLon = 44;
-  const maxLon = 68;
+  const minLon = 43.423242;
+  const maxLon = 63.905176;
+  const minLat = 24.5021;
+  const maxLat = 40.368555;
+  const showName = alive.length <= 14;
   const dots = alive
     .map((poet) => {
       const x = ((poet.birthPlaceLongitude - minLon) / (maxLon - minLon)) * 100;
       const y = ((maxLat - poet.birthPlaceLatitude) / (maxLat - minLat)) * 100;
-      if (x < -5 || x > 105 || y < -5 || y > 105) return "";
-      return `<a class="dot" style="left:${x}%;top:${y}%" href="#/poet/${poet.id}" title="${esc(poet.birthPlace || "")}">${esc(poet.nickname || poet.name)}</a>`;
+      if (x < 0 || x > 100 || y < 0 || y > 100) return "";
+      const name = esc(poet.nickname || poet.name);
+      return `<a class="pin" style="left:${x}%;top:${y}%" href="#/poet/${poet.id}" title="${name} · ${esc(poet.birthPlace || "")}">${showName ? `<span>${name}</span>` : ""}<i></i></a>`;
     })
     .join("");
+  const ticks = [];
+  for (let mark = Math.ceil(min / 100) * 100; mark < max; mark += 100) ticks.push(mark);
   paint(
     "نقشه",
     `<h1>هم‌عصران</h1>
-     <p class="lead">سال را جابه‌جا کن. نقطه، زادگاه شاعر است؛ کسانی که آن سال زنده‌اند.</p>
-     <div class="year"><label for="year">سال ${year} هجری</label><input id="year" type="range" min="${min}" max="${max}" value="${year}" /></div>
-     <div class="atlas">${dots || `<p class="muted">در این سال کسی با زادگاه ثبت‌شده نیست.</p>`}</div>
-     <p class="muted">${alive.length} شاعر در این سال.</p>
+     <p class="lead">سال را جابه‌جا کن. نقطه طلایی، زادگاه شاعر است؛ کسانی که آن سال زنده‌اند.</p>
+     <div class="year">
+       <div class="year-top"><span>سفر در زمان</span><strong id="year-label">سال ${year} هجری</strong></div>
+       <input id="year" type="range" min="${min}" max="${max}" value="${year}" />
+       <div class="ticks">${ticks.map((mark) => `<span>${mark}</span>`).join("")}</div>
+     </div>
+     <div class="atlas" aria-label="نقشه ایران">${dots || `<p class="muted empty-map">در این سال کسی با زادگاه داخل این نقشه نیست.</p>`}</div>
+     <p class="muted">${alive.length} شاعر در این سال. زادگاه بیرون از ایران فقط در فهرست پایین می‌آید.</p>
      <div class="chips">${alive.slice(0, 18).map((poet) => `<a class="chip" href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>`).join("")}</div>`,
   );
   const slider = document.querySelector("#year");
+  const label = document.querySelector("#year-label");
   slider.oninput = () => {
-    slider.previousElementSibling.textContent = `سال ${slider.value} هجری`;
+    label.textContent = `سال ${slider.value} هجری`;
   };
   slider.onchange = () => {
     location.hash = `#/map?y=${slider.value}`;
