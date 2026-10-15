@@ -284,7 +284,7 @@ async function home() {
          <p class="chips">
            <a class="chip" href="#/poets">همه شاعران</a>
            <a class="chip" href="#/map">نقشه هم‌عصران</a>
-           <a class="chip" href="#/sky">آسمان قرن‌ها</a>
+           <a class="chip" href="#/tree">درخت شاعران</a>
            <a class="chip" href="#/discover">کشف</a>
            <button class="chip" id="random" type="button">یک شعر تصادفی</button>
          </p>
@@ -908,52 +908,39 @@ async function treePage() {
   loading("درخت");
   const { data: poets } = await api("/poets");
   const pick = (name) => poets.find((poet) => `${poet.nickname || ""} ${poet.name || ""}`.includes(name));
-  const limb = (title, names) => {
-    const leaves = names
-      .map((name) => pick(name))
-      .filter(Boolean)
-      .map((poet) => `<a href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>`)
-      .join("");
-    return `<section class="limb"><h2>${title}</h2><div class="leaves">${leaves}</div></section>`;
-  };
-  paint(
-    "درخت",
-    `<h1>درخت خواندن</h1>
-     <p class="lead">این نقشه برای شروع خواندن است: کدام نام را در کدام قالب پیدا کنی. خط خویشاوندی یا تأثیر نیست و منبعش سلیقه خواندن است، نه یک سند گنجور.</p>
-     <div class="grove">
-       ${limb("ریشه", ["رودکی", "فردوسی"])}
-       ${limb("غزل", ["حافظ", "سعدی"])}
-       ${limb("مثنوی", ["مولانا", "نظامی"])}
-       ${limb("رباعی", ["خیام"])}
-       ${limb("عرفان", ["عطار", "مولانا"])}
-     </div>`,
-  );
-}
-
-async function skyPage(query) {
-  loading("آسمان");
-  const { data: poets } = await api("/poets");
-  const centuries = [...new Set(poets.map((poet) => centuryOf(poet.birthYearInLHijri)).filter(Boolean))].sort((a, b) => a - b);
-  const century = Number(query.get("c") || 8);
-  const list = poets.filter((poet) => centuryOf(poet.birthYearInLHijri) === century);
-  const placed = [];
-  const stars = [...list]
-    .sort((a, b) => a.birthYearInLHijri - b.birthYearInLHijri)
-    .map((poet) => {
-      const x = ((poet.birthYearInLHijri % 100) / 100) * 76 + 12;
-      let y = 16;
-      while (placed.some((item) => Math.abs(item.x - x) < 16 && Math.abs(item.y - y) < 14)) y += 14;
-      if (y > 86) y = 16 + (placed.length % 4) * 14;
-      placed.push({ x, y });
-      return `<a class="star" style="left:${x}%;top:${y}%" href="#/poet/${poet.id}"><i></i>${esc(poet.nickname || poet.name)}</a>`;
+  const spots = [
+    ["فردوسی", "حماسه", 50, 12, ""],
+    ["سعدی", "غزل", 84, 32, "lapis"],
+    ["حافظ", "غزل", 84, 56, ""],
+    ["عطار", "عرفان", 68, 76, "lapis"],
+    ["خیام", "رباعی", 16, 32, ""],
+    ["مولانا", "مثنوی", 16, 56, "lapis"],
+    ["نظامی", "مثنوی", 32, 76, ""],
+    ["رودکی", "ریشه", 50, 92, "lapis"],
+  ];
+  const leaves = spots
+    .map(([name, kind, x, y, tone]) => {
+      const poet = pick(name);
+      if (!poet) return "";
+      return `<a class="leaf ${tone}" style="left:${x}%;top:${y}%" href="#/poet/${poet.id}"><i></i><b>${esc(poet.nickname || poet.name)}</b><small>${kind}</small></a>`;
     })
     .join("");
   paint(
-    "آسمان",
-    `<h1>آسمان شعر</h1>
-     <p class="lead">هر ستاره یک شاعر این قرن است. جای افقی، سال تولد در همان قرن است.</p>
-     <div class="cents">${centuries.map((item) => `<a class="cent ${item === century ? "on" : ""}" href="#/sky?c=${item}">قرن ${item}</a>`).join("")}</div>
-     <div class="sky">${stars || `<p class="muted">در این قرن شاعری نیست.</p>`}</div>`,
+    "درخت",
+    `<h1>درخت شاعران</h1>
+     <p class="lead">شاخه‌ها قالب خواندن است: حماسه، غزل، رباعی، مثنوی و عرفان. ریشه رودکی است. این خویشاوندی تاریخی نیست.</p>
+     <div class="tree">
+       <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+         <polyline class="trunk" points="50,86 50,18"/>
+         <polyline points="50,30 70,30 84,32"/>
+         <polyline points="50,30 30,30 16,32"/>
+         <polyline points="50,52 70,52 84,56"/>
+         <polyline points="50,52 30,52 16,56"/>
+         <polyline points="50,68 60,68 68,76"/>
+         <polyline points="50,68 40,68 32,76"/>
+       </svg>
+       ${leaves}
+     </div>`,
   );
 }
 
@@ -981,8 +968,7 @@ async function vaznPage(query) {
 function discoverPage() {
   const tools = [
     ["#/map", "نقشه هم‌عصران", "سال را جابه‌جا کن و زادگاه شاعران زنده را ببین."],
-    ["#/sky", "آسمان شب", "شاعران هر قرن، ستاره‌هایی روی لاجورد."],
-    ["#/tree", "درخت خواندن", "غزل، مثنوی، رباعی و عرفان؛ نقشه خواندن است نه سند تأثیر."],
+    ["#/tree", "درخت شاعران", "شاخه‌های غزل، مثنوی، رباعی، عرفان و حماسه."],
     ["#/vazn", "وزن‌ها", "بحر و شمار مصراع، از خود گنجور."],
     ["#/library", "خاطره‌نگار", "شعرهایی که خوانده‌ای یا نشان کرده‌ای، روی همین دستگاه."],
     ["#/search", "جستجو", "واژه یا تکه‌ای از بیت در همه شعرها."],
@@ -1025,8 +1011,7 @@ async function render() {
     else if (parts[0] === "poem" && parts[1]) await poemPage(parts[1], query);
     else if (parts[0] === "search") await searchPage(query);
     else if (parts[0] === "map") await mapPage(query);
-    else if (parts[0] === "sky") await skyPage(query);
-    else if (parts[0] === "tree") await treePage();
+    else if (parts[0] === "tree" || parts[0] === "sky") await treePage();
     else if (parts[0] === "vazn") await vaznPage(query);
     else if (parts[0] === "discover") discoverPage();
     else if (parts[0] === "library") await libraryPage();
