@@ -52,6 +52,129 @@ function bare(text) {
   return String(text).replace(/[\u064B-\u065F\u0670\u0640]/g, "");
 }
 
+const files = new Map();
+async function fileJson(name) {
+  if (files.has(name)) return files.get(name);
+  const response = await fetch(`https://cdn.jsdelivr.net/gh/ganjoor/ganjoor-data@main/${name}`);
+  if (!response.ok) throw new Error(name);
+  const data = await response.json();
+  files.set(name, data);
+  return data;
+}
+
+async function placesOnVerses(poet) {
+  const slug = String(poet.fullUrl || "").replace(/^\//, "");
+  if (!slug) return [];
+  const [geo, locations] = await Promise.all([fileJson("geotags.json"), fileJson("locations.json")]);
+  const dated = geo.filter((item) => item.LunarYear);
+  const buckets = [...new Set(dated.map((item) => Math.floor(item.PoemId / 2000)))];
+  const index = {};
+  for (const bucket of buckets) Object.assign(index, await fileJson(`index/poems-by-id/${bucket}.json`));
+  const byId = new Map(locations.map((item) => [item.Id, item]));
+  const seen = new Set();
+  const stops = [];
+  for (const item of dated) {
+    const url = index[String(item.PoemId)] || "";
+    if (!url.startsWith(`/${slug}/`)) continue;
+    const place = byId.get(item.LocationId);
+    if (!place) continue;
+    const key = `${item.LunarYear}-${place.Name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    stops.push({
+      year: item.LunarYear,
+      place: place.Name,
+      poemId: item.PoemId,
+      verified: Boolean(item.VerifiedDate),
+    });
+  }
+  return stops.sort((a, b) => a.year - b.year);
+}
+
+function lifeBlock(poet) {
+  const birth = poet.birthYearInLHijri;
+  const death = poet.deathYearInLHijri;
+  const img = poet.imageUrl
+    ? `<img src="https://api.ganjoor.net${esc(poet.imageUrl)}" alt="">`
+    : `<span class="medal t1">${esc((poet.nickname || poet.name || "؟").slice(0, 1))}</span>`;
+  if (!birth || !death || death <= birth) {
+    return `<figure class="ageshot mid">${img}<figcaption>چهره ثبت‌شده در گنجور</figcaption></figure>`;
+  }
+  const span = death - birth;
+  const start = Math.round(span / 2);
+  return `<section class="life">
+    <figure class="ageshot mid" id="shot">${img}<figcaption id="stage-name">میانسالی</figcaption></figure>
+    <div class="year">
+      <div class="year-top"><span>سن حدودی</span><strong id="age-label">حدود ${start} سالگی</strong></div>
+      <input id="age" type="range" min="0" max="${span}" value="${start}" />
+    </div>
+    <p class="muted">چهره همان عکس گنجور است. جوانی و کهنسالی فقط با رنگ تقریبی است، نقاشی تاریخی نیست. گنجور سال سرودن هر شعر را ندارد.</p>
+    <p class="muted" id="journey"></p>
+    <div class="chips" id="stops"></div>
+  </section>`;
+}
+
+function bindLife(poet, age) {
+  const birth = poet.birthYearInLHijri;
+  const span = poet.deathYearInLHijri - birth;
+  const shot = document.querySelector("#shot");
+  const stage = document.querySelector("#stage-name");
+  const label = document.querySelector("#age-label");
+  const names = { young: "جوانی", mid: "میانسالی", old: "کهنسالی" };
+  const paintAge = () => {
+    const years = Number(age.value);
+    const key = years < span / 3 ? "young" : years < (span * 2) / 3 ? "mid" : "old";
+    shot.className = `ageshot ${key}`;
+    stage.textContent = names[key];
+    label.textContent = `حدود ${years} سالگی · سال ${birth + years}`;
+    document.querySelectorAll("#stops .stop").forEach((node) => {
+      const from = Number(node.dataset.from);
+      const to = Number(node.dataset.to);
+      node.classList.toggle("on", birth + years >= from && birth + years <= to);
+    });
+  };
+  age.oninput = paintAge;
+  paintAge();
+  const journey = document.querySelector("#journey");
+  const same = poet.birthPlace && poet.birthPlace === poet.deathPlace;
+  journey.textContent = same
+    ? `زاد و درگذشت هر دو در ${poet.birthPlace} ثبت شده. مسیر سفری در گنجور نیست.`
+    : `گنجور زادگاه را ${poet.birthPlace || "نامشخص"} و محل درگذشت را ${poet.deathPlace || "نامشخص"} نوشته. ایستگاه‌های بین راه را ندارد.`;
+  placesOnVerses(poet)
+    .then((stops) => {
+      if (!document.body.contains(age)) return;
+      const box = document.querySelector("#stops");
+      if (!stops.length || !box) return;
+      const inside = stops.filter((stop) => stop.year >= birth && stop.year <= poet.deathYearInLHijri);
+      const outside = stops.filter((stop) => stop.year < birth || stop.year > poet.deathYearInLHijri);
+      const groups = new Map();
+      for (const stop of inside) {
+        const group = groups.get(stop.place) || { place: stop.place, years: [], poemId: stop.poemId };
+        group.years.push(stop.year);
+        groups.set(stop.place, group);
+      }
+      box.innerHTML =
+        [...groups.values()]
+          .map((group) => {
+            const years = [...new Set(group.years)].sort((a, b) => a - b);
+            const span = years.length > 2 ? `${years[0]} تا ${years[years.length - 1]}` : years.join("، ");
+            return `<a class="chip stop" data-from="${years[0]}" data-to="${years[years.length - 1]}" href="#/poem/${group.poemId}">${esc(group.place)} · ${span}</a>`;
+          })
+          .join("") +
+        (outside.length ? `<p class="muted">سال‌هایی روی بیت هست که بیرون عمر ثبت‌شده است و اینجا به‌عنوان سفر حساب نشد.</p>` : "");
+      journey.textContent = "این سال‌ها و شهرها برچسب گنجور روی بیت است، نه سفرنامه کامل. منبع هر کدام همان شعر است.";
+      paintAge();
+    })
+    .catch(() => {});
+}
+
+function pickSpread(list, count) {
+  if (list.length <= count) return list;
+  const out = [];
+  for (let i = 0; i < count; i += 1) out.push(list[Math.round((i * (list.length - 1)) / (count - 1))]);
+  return out;
+}
+
 function centuryOf(year) {
   if (!year) return 0;
   return Math.floor((year - 1) / 100) + 1;
@@ -188,6 +311,7 @@ async function poetPage(id) {
     `<p class="crumb"><a href="#/poets">شاعران</a></p>
      <p class="kicker">${esc(poet.birthPlace || "")} · ${poet.birthYearInLHijri || "؟"} تا ${poet.deathYearInLHijri || "؟"}</p>
      <h1>${esc(poet.name)}</h1>
+     ${lifeBlock(poet)}
      <ol class="ribbon">
        <li class="seg s0"><strong>${poet.birthYearInLHijri || "؟"}</strong><span>زاده ${esc(poet.birthPlace || "جای نامشخص")}</span></li>
        <li class="seg s1"><strong>${poet.deathYearInLHijri && poet.birthYearInLHijri ? poet.deathYearInLHijri - poet.birthYearInLHijri : "؟"} سال</strong><span>فاصله زادروز تا درگذشت</span></li>
@@ -198,11 +322,14 @@ async function poetPage(id) {
      <p class="chips">
        <a class="chip" href="https://ganjoor.net${esc(poet.fullUrl)}" rel="noreferrer">در گنجور</a>
        ${poet.birthPlaceLatitude ? `<a class="chip" href="#/map?y=${poet.birthYearInLHijri || 700}">روی نقشه</a>` : ""}
+       <a class="chip" href="#/bridges/${poet.id}">پل‌های ثبت‌شده</a>
      </p>
      ${books ? `<h2 class="section">آثار</h2><div class="covers">${books}</div>` : ""}
      ${loose ? `<h2 class="section">شعرها</h2><div class="grid">${loose}</div>` : ""}`,
   );
   document.querySelector("#more").onclick = () => document.querySelector("#bio").classList.toggle("open");
+  const age = document.querySelector("#age");
+  if (age) bindLife(poet, age);
 }
 
 async function catPage(id, query) {
@@ -607,6 +734,71 @@ function aboutPage() {
   );
 }
 
+async function bridgesPage(id) {
+  loading("پل‌ها");
+  const { data } = await api(`/poet/${id}`);
+  const poet = data.poet;
+  const cat = data.cat || {};
+  let poems = cat.poems || [];
+  if (!poems.length && (cat.children || []).length) {
+    const { data: child } = await api(`/cat/${cat.children[0].id}?poems=true&mainSections=false`);
+    poems = (child.cat || child).poems || [];
+  }
+  const sample = pickSpread(poems, 12);
+  const links = new Map();
+  await Promise.all(
+    sample.map(async (poem) => {
+      const { data: full } = await api(
+        `/poem/${poem.id}?verseDetails=false&recitations=false&comments=false&songs=false&images=false&navigation=false&catInfo=false`,
+      );
+      for (const item of full.top6QuotedPoems || []) {
+        if (!item.relatedPoetId || item.relatedPoetId === poet.id || item.published === false) continue;
+        const row = links.get(item.relatedPoetId) || {
+          id: item.relatedPoetId,
+          name: item.cachedRelatedPoemPoetName || "شاعر",
+          n: 0,
+          kind: "تضمین",
+          poemId: item.relatedPoemId,
+          line: item.relatedCoupletVerse2 || item.coupletVerse1 || "",
+        };
+        row.n += 1;
+        links.set(item.relatedPoetId, row);
+      }
+      for (const item of ((full.sections || [])[0] || {}).top6RelatedSections || []) {
+        if (!item.poetId || item.poetId === poet.id) continue;
+        const row = links.get(item.poetId) || {
+          id: item.poetId,
+          name: item.poetName || "شاعر",
+          n: 0,
+          kind: "استقبال",
+          poemId: item.targetPoemId,
+          line: item.fullTitle || "",
+        };
+        row.n += 1;
+        links.set(item.poetId, row);
+      }
+    }),
+  );
+  const rows = [...links.values()].sort((a, b) => b.n - a.n);
+  paint(
+    "پل‌ها",
+    `<p class="crumb"><a href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a></p>
+     <h1>پل‌های ثبت‌شده</h1>
+     <p class="lead">این‌ها شاعرانی‌اند که در نمونه شعرهای ${esc(poet.nickname || poet.name)}، گنجور تضمین یا استقبال ثبت کرده. منبع هر کارت همان شعر است. این فهرست همه دیوان نیست و تأثیر زندگی را ثابت نمی‌کند.</p>
+     ${
+       rows.length
+         ? `<div class="grid">${rows
+             .map(
+               (row) =>
+                 `<a class="card" href="#/poem/${row.poemId}"><div class="kicker">${esc(row.kind)} · ${row.n} بار در این نمونه</div><strong>${esc(row.name)}</strong><p class="muted">${esc(row.line)}</p></a>`,
+             )
+             .join("")}</div>`
+         : `<p>در این نمونه، تضمین یا استقبالی ثبت نشده.</p>`
+     }
+     <p><a class="chip" href="#/poet/${poet.id}">بازگشت به شاعر</a></p>`,
+  );
+}
+
 async function skyPage(query) {
   loading("آسمان");
   const { data: poets } = await api("/poets");
@@ -690,6 +882,7 @@ async function render() {
     if (!parts.length) await home();
     else if (parts[0] === "poets") await poetsPage(query);
     else if (parts[0] === "poet" && parts[1]) await poetPage(parts[1]);
+    else if (parts[0] === "bridges" && parts[1]) await bridgesPage(parts[1]);
     else if (parts[0] === "cat" && parts[1]) await catPage(parts[1], query);
     else if (parts[0] === "poem" && parts[1]) await poemPage(parts[1], query);
     else if (parts[0] === "search") await searchPage(query);

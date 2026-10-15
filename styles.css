@@ -228,6 +228,7 @@ body.quiet .sheet::before, body.quiet .ornament { display: none; }
 .face:hover { border-color: var(--turquoise); text-decoration: none; }
 .face small { display: block; color: var(--muted); }
 .medal {
+  position: relative;
   width: 72px; height: 72px; margin: 0 auto 8px; border-radius: 50%;
   display: grid; place-items: center; color: #fffdf8; font-size: 1.7rem; font-weight: 700;
 }
@@ -325,7 +326,14 @@ body.quiet .sheet::before, body.quiet .ornament { display: none; }
   border: 0;
 }
 .empty-map { padding: 24px; }
-.medal { position: relative; background: #0c6e66; }
+.life { text-align: center; margin: 8px 0 18px; }
+.ageshot { margin: 0 auto 8px; }
+.ageshot img, .ageshot .medal { width: 168px; height: 210px; object-fit: cover; border-radius: 18px; border: 1px solid #c4a15a; }
+.ageshot figcaption { color: #1a2744; font-weight: 700; margin-top: 6px; }
+.ageshot.young img { filter: brightness(1.14) saturate(1.15) contrast(0.92); }
+.ageshot.old img { filter: sepia(0.45) grayscale(0.28) brightness(0.88) contrast(1.08); }
+.ageshot.young figcaption { color: #8a5a12; }
+.ageshot.old figcaption { color: #6e3040; }
 .medal b { position: relative; z-index: 0; }
 .medal img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; z-index: 1; }
 .ribbon { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
