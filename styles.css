@@ -194,6 +194,14 @@ h2 { font-size: 1.2rem; margin: 0 0 12px; color: var(--navy); }
 .leaf b { display: block; font-size: 0.95rem; }
 .leaf small { display: block; color: #0a6b60; font-size: 0.72rem; }
 .leaf:hover { text-decoration: none; border-color: #9a7433; }
+.bough { padding: 12px 0; border-top: 1px solid var(--line); }
+.bough h2 { margin: 0 0 8px; font-size: 1rem; color: var(--turquoise); }
+.twigs { display: flex; flex-wrap: wrap; gap: 8px; }
+.twig {
+  min-height: 44px; display: inline-flex; align-items: center; padding: 6px 12px;
+  border-radius: 999px; background: #fffdf8; border: 1px solid #0a6b60; color: #1a2744;
+}
+.twig:hover { background: #0a6b60; color: #fffdf8; text-decoration: none; }
 @media (min-width: 800px) {
   .tree { aspect-ratio: 5 / 3.4; }
   .leaf { width: 6.4rem; }
@@ -267,7 +275,7 @@ body.quiet .sheet::before, body.quiet .ornament { display: none; }
   font-size: clamp(4.2rem, 9vw, 7rem); line-height: 0.95;
 }
 .calligraphy:hover { color: var(--turquoise); text-decoration: none; }
-.faces { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 12px; }
+.faces { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
 .face {
   display: block; text-align: center; background: var(--card); color: var(--ink);
   border: 1px solid var(--line); border-radius: 16px; padding: 16px 10px;
@@ -278,6 +286,7 @@ body.quiet .sheet::before, body.quiet .ornament { display: none; }
   position: relative;
   width: 72px; height: 72px; margin: 0 auto 8px; border-radius: 50%;
   display: grid; place-items: center; color: #fffdf8; font-size: 1.7rem; font-weight: 700;
+  box-shadow: 0 0 0 3px #fffdf8, 0 0 0 5px #c4a15a;
 }
 .t1 { background: #0c6e66; } .t2 { background: #1a3a9c; } .t3 { background: #8c3d4a; } .t4 { background: #8a5a12; }
 .cents { display: flex; flex-wrap: wrap; gap: 8px; }

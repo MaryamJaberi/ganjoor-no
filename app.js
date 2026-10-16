@@ -268,7 +268,13 @@ async function home() {
     api("/poets"),
     fetch(`${API}/poem/random?poetId=2`).then((response) => (response.ok ? response.json() : null)).catch(() => null),
   ]);
-  const pinned = [...poets].filter((poet) => poet.pinOrder).sort((a, b) => a.pinOrder - b.pinOrder).slice(0, 10);
+  const pinned = [...poets].filter((poet) => poet.pinOrder).sort((a, b) => a.pinOrder - b.pinOrder);
+  const pinnedIds = new Set(pinned.map((poet) => poet.id));
+  const everyone = pinned.concat(
+    poets
+      .filter((poet) => !pinnedIds.has(poet.id))
+      .sort((a, b) => (a.birthYearInLHijri || 9999) - (b.birthYearInLHijri || 9999) || (a.nickname || "").localeCompare(b.nickname || "", "fa")),
+  );
   const centuries = [...new Set(poets.map((poet) => centuryOf(poet.birthYearInLHijri)).filter(Boolean))].sort((a, b) => a - b);
   paint(
     "خانه",
@@ -291,8 +297,8 @@ async function home() {
        </div>
        <a class="calligraphy" href="#/poet/2">حافظ</a>
      </section>
-     <h2 class="section">شاعران برجسته</h2>
-     <div class="faces">${pinned.map(poetFace).join("")}</div>
+     <h2 class="section">همه شاعران · ${everyone.length}</h2>
+     <div class="faces">${everyone.map(poetFace).join("")}</div>
      ${opening(bit)}
      <h2 class="section">پیمایش بر اساس قرن</h2>
      <div class="cents">${centuries.map((item) => `<a class="cent" href="#/poets?c=${item}">قرن ${item}</a>`).join("")}</div>
@@ -925,10 +931,24 @@ async function treePage() {
       return `<a class="leaf ${tone}" style="left:${x}%;top:${y}%" href="#/poet/${poet.id}"><i></i><b>${esc(poet.nickname || poet.name)}</b><small>${kind}</small></a>`;
     })
     .join("");
+  const centuries = [...new Set(poets.map((poet) => centuryOf(poet.birthYearInLHijri)).filter(Boolean))].sort((a, b) => a - b);
+  const byCentury = (century) =>
+    poets
+      .filter((poet) => centuryOf(poet.birthYearInLHijri) === century)
+      .sort((a, b) => a.birthYearInLHijri - b.birthYearInLHijri);
+  const roster = centuries
+    .map(
+      (century) =>
+        `<section class="bough"><h2>قرن ${century}</h2><div class="twigs">${byCentury(century)
+          .map((poet) => `<a class="twig" href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>`)
+          .join("")}</div></section>`,
+    )
+    .join("");
+  const undated = poets.filter((poet) => !centuryOf(poet.birthYearInLHijri));
   paint(
     "درخت",
     `<h1>درخت شاعران</h1>
-     <p class="lead">شاخه‌ها قالب خواندن است: حماسه، غزل، رباعی، مثنوی و عرفان. ریشه رودکی است. این خویشاوندی تاریخی نیست.</p>
+     <p class="lead">بالا، نقشه خواندن هشت نام آشناست. پایین، همه شاعران منتشرشده گنجور، شاخه به شاخه بر اساس قرن. این خویشاوندی تاریخی نیست.</p>
      <div class="tree">
        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
          <polyline class="trunk" points="50,86 50,18"/>
@@ -940,7 +960,10 @@ async function treePage() {
          <polyline points="50,68 40,68 32,76"/>
        </svg>
        ${leaves}
-     </div>`,
+     </div>
+     <h2 class="section">همه شاعران · ${poets.length}</h2>
+     ${roster}
+     ${undated.length ? `<section class="bough"><h2>بی‌سال</h2><div class="twigs">${undated.map((poet) => `<a class="twig" href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>`).join("")}</div></section>` : ""}`,
   );
 }
 
