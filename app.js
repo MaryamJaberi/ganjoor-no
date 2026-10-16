@@ -939,9 +939,7 @@ async function treePage() {
   const roster = centuries
     .map(
       (century) =>
-        `<section class="bough"><h2>قرن ${century}</h2><div class="twigs">${byCentury(century)
-          .map((poet) => `<a class="twig" href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>`)
-          .join("")}</div></section>`,
+        `<section class="bough"><h2>قرن ${century}</h2><div class="faces">${byCentury(century).map(poetFace).join("")}</div></section>`,
     )
     .join("");
   const undated = poets.filter((poet) => !centuryOf(poet.birthYearInLHijri));
@@ -951,19 +949,19 @@ async function treePage() {
      <p class="lead">بالا، نقشه خواندن هشت نام آشناست. پایین، همه شاعران منتشرشده گنجور، شاخه به شاخه بر اساس قرن. این خویشاوندی تاریخی نیست.</p>
      <div class="tree">
        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-         <polyline class="trunk" points="50,86 50,18"/>
-         <polyline points="50,30 70,30 84,32"/>
-         <polyline points="50,30 30,30 16,32"/>
-         <polyline points="50,52 70,52 84,56"/>
-         <polyline points="50,52 30,52 16,56"/>
-         <polyline points="50,68 60,68 68,76"/>
-         <polyline points="50,68 40,68 32,76"/>
+         <path class="trunk" d="M50 88 V18"/>
+         <path d="M50 34 C40 32, 28 30, 18 32"/>
+         <path d="M50 34 C60 32, 72 30, 82 32"/>
+         <path d="M50 50 C38 48, 26 50, 16 56"/>
+         <path d="M50 50 C62 48, 74 50, 84 56"/>
+         <path d="M50 66 C44 68, 38 72, 32 76"/>
+         <path d="M50 66 C56 68, 62 72, 68 76"/>
        </svg>
        ${leaves}
      </div>
      <h2 class="section">همه شاعران · ${poets.length}</h2>
      ${roster}
-     ${undated.length ? `<section class="bough"><h2>بی‌سال</h2><div class="twigs">${undated.map((poet) => `<a class="twig" href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a>`).join("")}</div></section>` : ""}`,
+     ${undated.length ? `<section class="bough"><h2>بی‌سال</h2><div class="faces">${undated.map(poetFace).join("")}</div></section>` : ""}`,
   );
 }
 
