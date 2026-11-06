@@ -258,21 +258,43 @@ function pagingTotal(response) {
   return Number(response.headers.get("items-count") || 0);
 }
 
+const fa = (value) => Number(value || 0).toLocaleString("fa-IR");
+const TOOL_ROUTES = new Set(["discover", "map", "places", "tree", "bridges", "people", "person", "vazn", "devices", "device", "words", "layers", "faal", "data"]);
+
+function routeName() {
+  return (location.hash || "#/").replace(/^#\/?/, "").split(/[/?]/)[0];
+}
+
 function paint(title, html, quiet = false) {
   document.title = `${title} — گنجور نو`;
   document.body.classList.toggle("quiet", quiet);
   bar.hidden = quiet;
   foot.hidden = quiet;
-  root.innerHTML = `<div class="sheet">${html}</div>`;
+  const route = routeName();
+  const back = TOOL_ROUTES.has(route) && route !== "discover" && !html.trimStart().startsWith('<p class="crumb">') ? `<p class="crumb"><a href="#/discover">ابزارها</a></p>` : "";
+  root.innerHTML = `<div class="sheet">${back}${html}</div>`;
+  root.removeAttribute("aria-busy");
   window.scrollTo(0, 0);
 }
 
 function loading(title) {
-  paint(title, `<p class="muted">در حال آوردن از گنجور…</p>`);
+  paint(title, `<div class="loader" role="status"><span class="spin" aria-hidden="true"></span><span>در حال آوردن از گنجور…</span></div>`);
+  root.setAttribute("aria-busy", "true");
 }
 
 function failed(error) {
-  paint("خطا", `<h1>ارتباط برقرار نشد</h1><p>گنجور الان جواب نداد. اتصال را بررسی کن و دوباره باز کن.</p><p class="muted">${esc(error.message)}</p>`);
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  paint(
+    "خطا",
+    `<section class="empty-state"><h1>${offline ? "اینترنت وصل نیست" : "ارتباط برقرار نشد"}</h1>
+     <p>${offline ? "اتصال را برقرار کن و دوباره امتحان کن." : "گنجور الان جواب نداد. چند لحظه بعد دوباره امتحان کن."}</p>
+     <p class="chips"><button class="btn primary" type="button" id="retry">دوباره</button><a class="chip" href="#/">خانه</a></p>
+     <p class="muted">${esc(error.message)}</p></section>`,
+  );
+  document.querySelector("#retry").onclick = () => {
+    cache.clear();
+    render();
+  };
 }
 
 function opening(poem) {
@@ -320,18 +342,20 @@ async function home() {
            <button class="btn primary" type="submit">جستجو</button>
          </form>
          <p class="chips">
+           <button class="chip on" id="random" type="button">یک شعر تصادفی</button>
+           <a class="chip" href="#/faal">فال حافظ</a>
            <a class="chip" href="#/poets">همه شاعران</a>
-           <a class="chip" href="#/map">نقشه هم‌عصران</a>
-           <a class="chip" href="#/tree">درخت شاعران</a>
-           <a class="chip" href="#/discover">کشف</a>
-           <button class="chip" id="random" type="button">یک شعر تصادفی</button>
+           <a class="chip" href="#/discover">همه ابزارها</a>
          </p>
        </div>
        <a class="calligraphy" href="#/poet/2">حافظ</a>
      </section>
-     <h2 class="section">همه شاعران · ${everyone.length}</h2>
-     <div class="faces">${everyone.map(poetFace).join("")}</div>
      ${opening(bit)}
+     <h2 class="section">ابزارها</h2>
+     <div class="toolbelt">${HOME_TOOLS.map(([href, title, text, icon]) => `<a class="tool" href="${href}"><span class="tool-icon" aria-hidden="true">${icon}</span><strong>${title}</strong><small>${text}</small></a>`).join("")}</div>
+     <p><a href="#/discover">همه ابزارها، دسته به دسته</a></p>
+     <h2 class="section">همه شاعران · ${fa(everyone.length)}</h2>
+     <div class="faces">${everyone.map(poetFace).join("")}</div>
      <h2 class="section">پیمایش بر اساس قرن</h2>
      <div class="cents">${centuries.map((item) => `<a class="cent" href="#/poets?c=${item}">قرن ${item}</a>`).join("")}</div>
      <p class="note">متن و صوت از <a href="https://ganjoor.net" rel="noreferrer">گنجور</a> می‌آید. این سایت رسمی گنجور نیست؛ طراحی و ساختش با مریم جابری است.</p>`,
@@ -567,7 +591,7 @@ async function poemPage(id, query) {
              <button class="chip" type="button" data-tab="device" id="device-tab">آرایه</button>
              ${metre ? `<button class="chip" type="button" data-tab="kin">هم‌وزن</button>` : ""}
            </div>
-           <div id="pane"></div>
+           <div id="pane" aria-live="polite"></div>
          </div>
          ${
            recitations.length
@@ -932,23 +956,26 @@ async function libraryPage() {
   const data = store.get();
   const block = async (ids, empty) => {
     if (!ids.length) return `<p class="muted">${empty}</p>`;
-    const cards = [];
-    for (const id of ids.slice(0, 12)) {
-      try {
-        const { data: poem } = await api(`/poem/${id}?catInfo=true&verseDetails=false&recitations=false&navigation=false&comments=false&images=false&songs=false`);
-        const poet = poem.category?.poet;
-        cards.push(`<a class="card" href="#/poem/${id}"><strong>${esc(poem.title)}</strong><div class="muted">${esc(poet?.nickname || "")}</div></a>`);
-      } catch (error) {
-        if (error === STALE) throw error;
-        cards.push("");
-      }
-    }
+    const cards = await Promise.all(
+      ids.slice(0, 12).map(async (id) => {
+        try {
+          const { data: poem } = await api(`/poem/${id}?catInfo=true&verseDetails=false&recitations=false&navigation=false&comments=false&images=false&songs=false`);
+          const poet = poem.category?.poet;
+          return `<a class="card" href="#/poem/${id}"><div class="kicker">${esc(poet?.nickname || "")}</div><strong>${esc(poem.title)}</strong></a>`;
+        } catch (error) {
+          if (error === STALE) throw error;
+          return "";
+        }
+      }),
+    );
     return `<div class="grid">${cards.join("")}</div>`;
   };
   loading("کتابخانه");
   const notes = Object.entries(data.notes).filter(([, text]) => String(text).trim());
-  const marksHtml = await block(data.marks, "هنوز شعری را نشان نکرده‌ای.");
-  const historyHtml = await block(data.history, "هنوز شعری نخوانده‌ای.");
+  const [marksHtml, historyHtml] = await Promise.all([
+    block(data.marks, "هنوز شعری را نشان نکرده‌ای. در صفحه هر شعر دکمه «نشان» را بزن."),
+    block(data.history, "هنوز شعری نخوانده‌ای."),
+  ]);
   const noteHtml = notes.length
     ? `<div class="grid">${notes
         .slice(0, 12)
@@ -972,7 +999,8 @@ function aboutPage() {
     `<h1>درباره گنجور نو</h1>
      <p class="lead">این یک خوانش‌خانه است: شعر را از رابط گنجور می‌گیرد و با چیدمان خودش نشان می‌دهد.</p>
      <p>متن، فهرست و فایل صوتی مال گنجور است و همان‌جا می‌ماند. نشان، یادداشت و اتاق خلوت روی دستگاه تو ذخیره می‌شود و به جایی فرستاده نمی‌شود.</p>
-     <p><a href="https://ganjoor.net">گنجور</a></p>
+     <p>کنار خواندن، <a href="#/discover">ابزارهایی</a> هست برای دیدن شعر از راه‌های دیگر: نقشه، پیوند شاعران، مردمان شاهنامه، وزن، آرایه و واژه. همه از داده باز گنجور ساخته شده‌اند؛ فهرستش در <a href="#/data">داده‌ها</a> است.</p>
+     <p class="chips"><a class="chip" href="https://ganjoor.net" rel="noreferrer">گنجور</a><a class="chip" href="https://github.com/maryamjaberi/ganjoor-no" rel="noreferrer">کد این سایت</a></p>
      <p class="muted">طراحی و ساخت: مریم جابری</p>`,
   );
 }
@@ -1019,7 +1047,7 @@ async function bridgesPage(id) {
     ? `<div class="graph"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${ring
         .map((row) => `<line x1="50" y1="48" x2="${row.x}" y2="${row.y}" style="stroke-width:${(0.3 + (row.n / most) * 1.1).toFixed(2)}" />`)
         .join("")}</svg><a class="node" style="left:50%;top:48%" href="#/poet/${poet.id}"><i></i>${esc(poet.nickname || poet.name)}</a>${ring
-        .map((row) => `<a class="node" style="left:${row.x}%;top:${row.y}%" href="#/bridges/${row.id}"><i></i>${esc(row.name)} · ${row.n}</a>`)
+        .map((row) => `<a class="node" style="left:${row.x}%;top:${row.y}%" href="#/bridges/${row.id}"><i></i>${esc(row.name)} · ${fa(row.n)}</a>`)
         .join("")}</div>`
     : "";
   const direction = (row) => {
@@ -1031,14 +1059,14 @@ async function bridgesPage(id) {
     "پل‌ها",
     `<p class="crumb"><a href="#/poet/${poet.id}">${esc(poet.nickname || poet.name)}</a></p>
      <h1>پل‌های ثبت‌شده</h1>
-     <p class="lead">همه تضمین‌ها و بیت‌های مشترکی که گنجور برای ${esc(poet.nickname || poet.name)} ثبت و منتشر کرده: ${quoted.length || 0} پیوند با ${rows.length} شاعر. ضخامت خط، شمار پیوندهاست. روی هر نام بزنی، پل‌های آن شاعر باز می‌شود.</p>
+     <p class="lead">همه تضمین‌ها و بیت‌های مشترکی که گنجور برای ${esc(poet.nickname || poet.name)} ثبت و منتشر کرده: ${fa(quoted.length)} پیوند با ${fa(rows.length)} شاعر. ضخامت خط، شمار پیوندهاست. روی هر نام بزنی، پل‌های آن شاعر باز می‌شود.</p>
      ${graph}
      ${
        rows.length
          ? `<div class="grid">${rows
              .map(
                (row) =>
-                 `<article class="card"><div class="kicker">${row.n} پیوند · ${direction(row)}${row.both ? ` · ${row.both} بیت در دیوان هر دو` : ""}</div><strong><a href="#/bridges/${row.id}">${esc(row.name)}</a></strong>${row.samples
+                 `<article class="card"><div class="kicker">${fa(row.n)} پیوند · ${direction(row)}${row.both ? ` · ${fa(row.both)} بیت در دیوان هر دو` : ""}</div><strong><a href="#/bridges/${row.id}">${esc(row.name)}</a></strong>${row.samples
                    .map(
                      (sample) =>
                        `<p><a href="#/poem/${sample.mine}">${esc(sample.line)}</a>${sample.other && sample.other !== sample.line ? `<br><a class="muted" href="#/poem/${sample.theirs}">${esc(sample.other)}</a>` : ""}</p>`,
@@ -1066,7 +1094,7 @@ async function vaznPage(query) {
     const { data: poems, total } = await api(`/poems/similar?metre=${encodeURIComponent(current.rhythm)}&PageNumber=${pageNo}&PageSize=${size}`);
     const list = Array.isArray(poems) ? poems : [];
     const pages = total ? Math.ceil(total / size) : list.length === size ? pageNo + 1 : pageNo;
-    poemsHtml = `<h2 class="section">شعرهای این وزن${total ? ` · ${total}` : ""}</h2>
+    poemsHtml = `<h2 class="section">شعرهای این وزن${total ? ` · ${fa(total)}` : ""}</h2>
       <div class="grid">${list
         .map((item) => {
           const first = String(item.plainText || "").split(/\r?\n/).filter((line) => line.trim()).slice(0, 2).join(" / ");
@@ -1079,8 +1107,8 @@ async function vaznPage(query) {
   paint(
     "وزن",
     `<h1>وزن‌ها</h1>
-     <p class="lead">${rhythms.length} وزن ثبت‌شده در گنجور. عدد، شمار مصراع‌ها در آن وزن است. وزن را بزن تا شعرهایش بیاید.</p>
-     ${current ? `<p class="panel"><strong>${esc(current.rhythm)}</strong><br><span class="muted">${current.verseCount} مصراع</span></p>${poemsHtml}` : ""}
+     <p class="lead">${fa(rhythms.length)} وزن ثبت‌شده در گنجور. عدد، شمار مصراع‌ها در آن وزن است. وزن را بزن تا شعرهایش بیاید.</p>
+     ${current ? `<p class="panel"><strong>${esc(current.rhythm)}</strong><br><span class="muted">${fa(current.verseCount)} مصراع</span></p>${poemsHtml}` : ""}
      <h2 class="section">همه وزن‌ها</h2>
      <form class="big-search" id="vazn-filter"><input id="vazn-q" placeholder="نام بحر یا افاعیل، مثلاً هزج یا مفاعیلن" aria-label="پالایش وزن" /></form>
      <div class="bars" id="vazn-list"></div>`,
@@ -1094,7 +1122,7 @@ async function vaznPage(query) {
       ? shown
           .map(
             (item) =>
-              `<a class="barrow ${item.id === selected ? "on" : ""}" href="#/vazn?id=${item.id}"><span>${esc(item.rhythm)}</span><i style="width:${Math.max(1, (item.verseCount / most) * 100).toFixed(1)}%"></i><b>${item.verseCount}</b></a>`,
+              `<a class="barrow ${item.id === selected ? "on" : ""}" href="#/vazn?id=${item.id}"><span>${esc(item.rhythm)}</span><i style="width:${Math.max(1, (item.verseCount / most) * 100).toFixed(1)}%"></i><b>${fa(item.verseCount)}</b></a>`,
           )
           .join("") + (q ? "" : `<p class="muted">چهل وزن پرکاربرد. برای بقیه نام وزن را بنویس.</p>`)
       : `<p class="muted">وزنی با این نام نیست.</p>`;
@@ -1159,6 +1187,15 @@ async function treePage() {
   );
 }
 
+const HOME_TOOLS = [
+  ["#/map", "نقشه هم‌عصران", "چه کسانی هم‌زمان می‌زیستند", "◎"],
+  ["#/devices", "آرایه‌ها", "لب ← لعل، ابرو ← کمان", "✦"],
+  ["#/people", "مردمان شعر", "خاندان و پیوندهای شاهنامه", "♙"],
+  ["#/words", "واژه‌سنج", "کدام شاعر بیشتر گفته", "≋"],
+  ["#/vazn", "وزن‌ها", "بحرها و شعرهایشان", "♪"],
+  ["#/bridges/2", "پل‌های تضمین", "چه کسی از چه کسی گرفت", "⇄"],
+];
+
 const TOOL_GROUPS = [
   {
     title: "زمان و مکان",
@@ -1201,8 +1238,8 @@ const TOOL_GROUPS = [
 
 function discoverPage() {
   paint(
-    "کشف",
-    `<h1>کشف</h1>
+    "ابزارها",
+    `<h1>ابزارها</h1>
      <p class="lead">راه‌های دیدن گنجینه، غیر از خواندن خطی. هر ابزار از داده باز گنجور ساخته شده؛ فهرستش در <a href="#/data">داده‌ها</a> هست.</p>
      ${TOOL_GROUPS.map(
        (group) => `<h2 class="section">${group.title}</h2><p class="muted">${group.about}</p>
@@ -1221,12 +1258,12 @@ async function dataPage() {
     if (error === STALE) throw error;
   }
   const n = (key) => (manifest && manifest[key] != null ? Number(manifest[key]).toLocaleString("fa-IR") : "؟");
-  const row = (name, what, count, used) => `<tr><th>${name}</th><td>${what}</td><td>${count}</td><td>${used}</td></tr>`;
+  const row = (name, what, count, used) => `<tr><th>${name}</th><td data-label="چه دارد">${what}</td><td data-label="اندازه">${count}</td><td data-label="کجا">${used}</td></tr>`;
   paint(
     "داده‌ها",
     `<h1>داده‌ها</h1>
      <p class="lead">هر چه اینجا می‌بینی از سه سرچشمه می‌آید. این صفحه آن‌ها را دسته‌بندی می‌کند و می‌گوید هر ابزار از کدام داده ساخته شده.</p>
-     ${manifest ? `<p class="muted">برون‌داد باز گنجور، به‌روز شده در ${esc(String(manifest.GeneratedAtUtc || "").slice(0, 10))}.</p>` : ""}
+     ${manifest ? `<p class="muted">برون‌داد باز گنجور، به‌روز شده در ${esc(new Date(manifest.GeneratedAtUtc).toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric" }))}.</p>` : ""}
      <h2 class="section">۱. متن و آثار</h2>
      <div class="table"><table><thead><tr><th>داده</th><th>چه دارد</th><th>اندازه</th><th>کجا به کار رفته</th></tr></thead><tbody>
        ${row("شاعران", "نام، تخلص، سال زاد و مرگ هجری، زادگاه با مختصات، چهره", n("PoetsCount"), `<a href="#/poets">شاعران</a>، <a href="#/map">نقشه</a>، <a href="#/tree">درخت</a>`)}
@@ -1422,7 +1459,7 @@ async function peoplePage() {
           .slice(0, q ? 120 : 60)
           .map(
             (person) =>
-              `<a class="card" href="#/person/${person.id}"><strong>${esc(person.name)}</strong>${degree.get(person.id) ? `<div class="kicker">${degree.get(person.id)} پیوند</div>` : ""}<div class="muted">${esc(person.description || "")}</div></a>`,
+              `<a class="card" href="#/person/${person.id}"><strong>${esc(person.name)}</strong>${degree.get(person.id) ? `<div class="kicker">${fa(degree.get(person.id))} پیوند</div>` : ""}<div class="muted">${esc(person.description || "")}</div></a>`,
           )
           .join("") + (!q && shown.length > 60 ? `<p class="muted">شصت نام پرپیوند. برای بقیه نام را بنویس.</p>` : "")
       : `<p class="muted">کسی با این نام نیست.</p>`;
@@ -1523,8 +1560,8 @@ async function personPage(id) {
      ${kin ? `<h2 class="section">خویشان</h2><div class="grid">${kin}</div>` : ""}
      ${ties ? `<h2 class="section">پیوندها</h2><div class="grid">${ties}</div>` : ""}
      ${treeHtml ? `<h2 class="section">خاندان${tree.books?.length ? ` · ${esc(tree.books.map((book) => book.title).join("، "))}` : ""}</h2>${treeHtml}` : ""}
-     ${present.length ? `<h2 class="section">حاضر در روایت · ${present.length}</h2><div class="grid">${mentionList(present)}</div>` : ""}
-     ${allusion.length ? `<h2 class="section">اشاره در شعر شاعران · ${allusion.length}</h2><div class="grid">${mentionList(allusion)}</div>` : ""}
+     ${present.length ? `<h2 class="section">حاضر در روایت · ${fa(present.length)}</h2><div class="grid">${mentionList(present)}</div>` : ""}
+     ${allusion.length ? `<h2 class="section">اشاره در شعر شاعران · ${fa(allusion.length)}</h2><div class="grid">${mentionList(allusion)}</div>` : ""}
      ${!kin && !ties && !rows.length ? `<p class="muted">برای این شخص هنوز پیوند یا بیتی ثبت نشده.</p>` : ""}
      <p class="muted">پیوندها و برچسب‌ها در گنجور بخشی با کمک هوش مصنوعی ساخته و به دست ویراستار بازبینی شده‌اند. هر کدام بیت گواه دارد؛ آن را بخوان.</p>`,
   );
@@ -1551,7 +1588,7 @@ async function devicesPage() {
            .join("")}</div>`,
        )
        .join("")}
-     ${(overview.topConcepts || []).length ? `<h2 class="section">مفهوم‌های پرکاربرد</h2><p class="chips">${overview.topConcepts.slice(0, 30).map((item) => `<span class="chip">${esc(item.name)} · ${item.usageCount}</span>`).join("")}</p>` : ""}
+     ${(overview.topConcepts || []).length ? `<h2 class="section">مفهوم‌های پرکاربرد</h2><p class="chips">${overview.topConcepts.slice(0, 30).map((item) => `<span class="chip">${esc(item.name)} · ${fa(item.usageCount)}</span>`).join("")}</p>` : ""}
      <p class="muted">بخشی از آرایه‌های غزل‌های حافظ از «پیکره متن ادبی فارسی» (Raji و همکاران، ۲۰۲۳، مجوز MIT) به گنجور آمده. <a href="#/data">درباره داده‌ها</a></p>`,
   );
 }
@@ -1621,11 +1658,11 @@ async function devicePage(id, query) {
          ? `<h2 class="section">${Number(id) === 1 ? "چه چیز به چه مانند شده" : "جفت‌های پرتکرار"}</h2>
             <div class="pairs">${pairs
               .slice(0, 24)
-              .map((row) => `<a class="pair ${concept === row.a ? "on" : ""}" href="#/device/${id}?c=${row.a}"><b>${esc(row.aName)}</b><span>←</span><b>${esc(row.bName)}</b><small>${row.n}</small></a>`)
+              .map((row) => `<a class="pair ${concept === row.a ? "on" : ""}" href="#/device/${id}?c=${row.a}"><b>${esc(row.aName)}</b><span>←</span><b>${esc(row.bName)}</b><small>${fa(row.n)}</small></a>`)
               .join("")}</div>`
          : ""
      }
-     ${top.length ? `<h2 class="section">مفهوم‌ها</h2><p class="chips"><a class="chip ${concept ? "" : "on"}" href="#/device/${id}">همه</a>${top.map((item) => `<a class="chip ${item.conceptId === concept ? "on" : ""}" href="#/device/${id}?c=${item.conceptId}">${esc(item.name)} · ${item.usageCount}</a>`).join("")}</p>` : ""}
+     ${top.length ? `<h2 class="section">مفهوم‌ها</h2><p class="chips"><a class="chip ${concept ? "" : "on"}" href="#/device/${id}">همه</a>${top.map((item) => `<a class="chip ${item.conceptId === concept ? "on" : ""}" href="#/device/${id}?c=${item.conceptId}">${esc(item.name)} · ${fa(item.usageCount)}</a>`).join("")}</p>` : ""}
      <h2 class="section">نمونه‌ها · ${(page.total || 0).toLocaleString("fa-IR")}</h2>
      ${items.length ? `<div class="grid">${items.map(card).join("")}</div>` : `<p class="muted">نمونه‌ای ثبت نشده.</p>`}
      ${pages > 1 ? `<p class="chips">${pageNo > 1 ? `<a class="chip" href="${here(pageNo - 1)}">قبلی</a>` : ""}<span class="chip">صفحه ${pageNo} از ${pages}</span>${pageNo < pages ? `<a class="chip" href="${here(pageNo + 1)}">بعدی</a>` : ""}</p>` : ""}`,
@@ -1668,9 +1705,9 @@ async function placesPage() {
   const most = Math.max(1, ...inside.map((group) => group.tags.length));
   const card = (group) => {
     const poets = [...new Set(group.tags.map((item) => item.poet).filter(Boolean))];
-    return `<article class="card" id="place-${group.place.Id}"><strong>${esc(group.place.Name)}</strong><div class="kicker">${group.tags.length} شعر${poets.length ? ` · ${esc(poets.join("، "))}` : ""}</div><p class="chips">${group.tags
+    return `<article class="card" id="place-${group.place.Id}"><strong>${esc(group.place.Name)}</strong><div class="kicker">${fa(group.tags.length)} شعر${poets.length ? ` · ${esc(poets.join("، "))}` : ""}</div><p class="chips">${group.tags
       .slice(0, 8)
-      .map((item) => `<a class="chip" href="#/poem/${item.poemId}">${esc(item.poet || "شعر")}${item.year ? ` · ${item.year}` : ""}</a>`)
+      .map((item) => `<a class="chip" href="#/poem/${item.poemId}">${esc(item.poet || "شعر")}${item.year ? ` · ${fa(item.year)}` : ""}</a>`)
       .join("")}</p></article>`;
   };
   dated.sort((a, b) => a.year - b.year);
@@ -1678,7 +1715,7 @@ async function placesPage() {
     "جای‌ها در شعر",
     `<h1>جای‌ها در شعر</h1>
      <p class="lead">${geo.length.toLocaleString("fa-IR")} بیت در گنجور به یک شهر بسته شده و ${dated.length.toLocaleString("fa-IR")} تا سال هم دارد. این نقشه زادگاه شاعر نیست؛ جایی است که خود شعر از آن حرف می‌زند. اندازه نقطه، شمار شعرهاست.</p>
-     <div class="atlas realm">${inside
+     <div class="atlas realm dense">${inside
        .map((group) => {
          const size = 8 + Math.round((group.tags.length / most) * 14);
          return `<a class="pin" style="left:${group.point.x}%;top:${group.point.y}%" href="#/places" data-place="${group.place.Id}" title="${esc(group.place.Name)}: ${group.tags.length} شعر">${group.tags.length > 1 ? `<span>${esc(group.place.Name)}</span>` : ""}<i style="width:${size}px;height:${size}px"></i></a>`;
@@ -1687,7 +1724,7 @@ async function placesPage() {
      ${
        dated.length
          ? `<h2 class="section">خط زمان · سال قمری</h2><ol class="ages">${dated
-             .map((item) => `<li><a href="#/poem/${item.poemId}"><b>${item.year}</b> · ${esc(item.place)}${item.poet ? ` · ${esc(item.poet)}` : ""}</a></li>`)
+             .map((item) => `<li><a href="#/poem/${item.poemId}"><b>${fa(item.year)}</b> · ${esc(item.place)}${item.poet ? ` · ${esc(item.poet)}` : ""}</a></li>`)
              .join("")}</ol>`
          : ""
      }
@@ -1795,7 +1832,7 @@ async function render() {
   menuBtn.setAttribute("aria-expanded", "false");
   document.querySelectorAll(".desk a, .mobile a, .footlinks a").forEach((link) => {
     const href = link.getAttribute("href") || "";
-    const on = href === path || (href !== "#/" && path.startsWith(href));
+    const on = href === path || (href !== "#/" && path.startsWith(href)) || (href === "#/discover" && TOOL_ROUTES.has(parts[0] || "") && parts[0] !== "faal");
     if (on) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
@@ -1822,7 +1859,7 @@ async function render() {
     else if (parts[0] === "layers") await layersPage(parts[1]);
     else if (parts[0] === "library") await libraryPage();
     else if (parts[0] === "about") aboutPage();
-    else paint("نیست", `<h1>این صفحه نیست</h1><p><a href="#/">خانه</a></p>`);
+    else paint("نیست", `<section class="empty-state"><h1>این صفحه نیست</h1><p>شاید نشانی عوض شده باشد.</p><p class="chips"><a class="btn primary" href="#/">خانه</a><a class="chip" href="#/discover">ابزارها</a><a class="chip" href="#/search">جستجو</a></p></section>`);
   } catch (error) {
     if (error === STALE || mine !== renderToken) return;
     failed(error);
