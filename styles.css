@@ -512,3 +512,4 @@ button.hit { width: 100%; text-align: start; font: inherit; margin-bottom: 8px; 
 @media (max-width: 640px) {
   .barrow { grid-template-columns: 7rem 1fr auto; }
 }
+.tree-box summary { cursor: pointer; padding: 8px 0; color: var(--turquoise); font-weight: 600; }

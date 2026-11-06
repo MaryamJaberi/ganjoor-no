@@ -1017,7 +1017,7 @@ async function bridgesPage(id) {
   });
   const graph = ring.length
     ? `<div class="graph"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${ring
-        .map((row) => `<line x1="50" y1="48" x2="${row.x}" y2="${row.y}" style="stroke-width:${(0.3 + (row.n / most) * 1.6).toFixed(2)}" />`)
+        .map((row) => `<line x1="50" y1="48" x2="${row.x}" y2="${row.y}" style="stroke-width:${(0.3 + (row.n / most) * 1.1).toFixed(2)}" />`)
         .join("")}</svg><a class="node" style="left:50%;top:48%" href="#/poet/${poet.id}"><i></i>${esc(poet.nickname || poet.name)}</a>${ring
         .map((row) => `<a class="node" style="left:${row.x}%;top:${row.y}%" href="#/bridges/${row.id}"><i></i>${esc(row.name)} · ${row.n}</a>`)
         .join("")}</div>`
@@ -1511,7 +1511,8 @@ async function personPage(id) {
           `<a class="hit" href="#/poem/${row.poemId}"><div class="kicker">${esc(String(row.poem?.fullTitle || "").split("»").slice(0, 2).join(" » "))}</div><strong>${esc(row.poem?.title || "")}</strong>${row.coupletText ? `<p>${esc(row.coupletText)}</p>` : ""}</a>`,
       )
       .join("");
-  const treeHtml = tree && (tree.persons || []).length > 1 ? familyTree(tree, Number(id)) : "";
+  const treeSize = tree ? (tree.persons || []).length : 0;
+  const treeHtml = treeSize > 1 ? `<details class="tree-box" ${treeSize <= 40 ? "open" : ""}><summary>${treeSize.toLocaleString("fa-IR")} نفر در این خاندان${treeSize > 40 ? "؛ برای دیدن باز کن" : ""}</summary>${familyTree(tree, Number(id))}</details>` : "";
   paint(
     person.name || "شخص",
     `<p class="crumb"><a href="#/people">مردمان شعر</a></p>
@@ -1676,7 +1677,7 @@ async function placesPage() {
   paint(
     "جای‌ها در شعر",
     `<h1>جای‌ها در شعر</h1>
-     <p class="lead">${geo.length} بیت در گنجور به یک شهر بسته شده و ${dated.length} تا سال هم دارد. این نقشه زادگاه شاعر نیست؛ جایی است که خود شعر از آن حرف می‌زند. اندازه نقطه، شمار شعرهاست.</p>
+     <p class="lead">${geo.length.toLocaleString("fa-IR")} بیت در گنجور به یک شهر بسته شده و ${dated.length.toLocaleString("fa-IR")} تا سال هم دارد. این نقشه زادگاه شاعر نیست؛ جایی است که خود شعر از آن حرف می‌زند. اندازه نقطه، شمار شعرهاست.</p>
      <div class="atlas realm">${inside
        .map((group) => {
          const size = 8 + Math.round((group.tags.length / most) * 14);
