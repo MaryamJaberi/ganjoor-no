@@ -465,3 +465,50 @@ body.quiet .tools { display: none; }
   .stage { grid-template-columns: minmax(0, 1fr) 22rem; align-items: start; }
   .tools { position: sticky; top: 84px; max-height: calc(100vh - 110px); overflow: auto; }
 }
+
+/* v18: ابزارهای تازه */
+.bars { display: grid; gap: 6px; margin: 12px 0; }
+.barrow {
+  display: grid; grid-template-columns: minmax(8rem, 16rem) 1fr auto; align-items: center; gap: 10px;
+  color: var(--ink); padding: 6px 10px; border-radius: 10px; border: 1px solid transparent;
+}
+.barrow:hover, .barrow.on { border-color: var(--line); background: var(--card); text-decoration: none; }
+.barrow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.95rem; }
+.barrow i { display: block; height: 10px; border-radius: 99px; background: var(--turquoise); min-width: 3px; }
+.barrow.lapis i { background: var(--lapis); }
+.barrow b { font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 8px; margin: 12px 0; }
+.pair {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+  background: var(--card); border: 1px solid var(--line); color: var(--ink);
+}
+.pair:hover, .pair.on { border-color: var(--turquoise); text-decoration: none; }
+.pair span { color: var(--gold); }
+.pair small { margin-inline-start: auto; color: var(--muted); }
+mark { background: #f6e3b4; color: inherit; border-radius: 4px; padding: 0 2px; }
+.word.hl { background: #f6e3b4; border-radius: 4px; }
+.couplet { font-size: 1.08rem; line-height: 2.1; }
+button.hit { width: 100%; text-align: start; font: inherit; margin-bottom: 8px; cursor: pointer; }
+.table { overflow-x: auto; margin: 8px 0 16px; }
+.table table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.table th, .table td { text-align: start; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table thead th { background: var(--soft); font-weight: 600; }
+.table tbody th { font-weight: 600; white-space: nowrap; }
+.kin, .kin ul { list-style: none; margin: 0; padding-inline-start: 1.4rem; }
+.kin { padding: 12px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.kin li { position: relative; padding: 2px 0; }
+.kin ul { border-inline-start: 1px dashed var(--line); margin-inline-start: 0.4rem; }
+.kin a.here { background: var(--turquoise); color: #fffdf8; padding: 1px 8px; border-radius: 99px; }
+.kin small { color: var(--muted); }
+.layers { display: grid; gap: 10px; margin: 16px 0; }
+.layer { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.layer .verse { font-size: 1.15rem; margin: 0 0 4px; }
+.layer .plain, .layer .mystic { margin: 2px 0; font-size: 0.95rem; }
+.layer .plain::before { content: "ساده: "; color: var(--turquoise); font-weight: 600; }
+.layer .mystic::before { content: "رمزی: "; color: var(--lapis); font-weight: 600; }
+.layers[data-show="plain"] .mystic, .layers[data-show="mystic"] .plain, .layers[data-show="none"] .plain, .layers[data-show="none"] .mystic { display: none; }
+.faal { text-align: center; }
+.faal-poem { margin-top: 20px; }
+@media (max-width: 640px) {
+  .barrow { grid-template-columns: 7rem 1fr auto; }
+}
