@@ -498,7 +498,7 @@ async function devices() {
   return deviceList;
 }
 
-const DEVICE_GROUP = { Bayan: "بیان", BadiManavi: "بدیع معنوی", BadiLafzi: "بدیع لفظی" };
+const DEVICE_GROUP = { 0: "بیان", 1: "بدیع لفظی", 2: "بدیع معنوی", Bayan: "بیان", BadiLafzi: "بدیع لفظی", BadiManavi: "بدیع معنوی" };
 
 async function poemPage(id, query) {
   loading("شعر");
