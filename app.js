@@ -1,6 +1,6 @@
 const API = "https://api.ganjoor.net/api/ganjoor";
 const ROOT_API = "https://api.ganjoor.net/api";
-const DATA = "https://cdn.jsdelivr.net/gh/ganjoor/ganjoor-data@main/";
+const DATA_SOURCES = ["https://raw.githubusercontent.com/ganjoor/ganjoor-data/main/", "https://cdn.jsdelivr.net/gh/ganjoor/ganjoor-data@main/"];
 const STALE = new Error("stale");
 const REALM = { minLon: 43, maxLon: 73.5, minLat: 23, maxLat: 47.6 };
 
@@ -74,9 +74,16 @@ const files = new Map();
 async function fileJson(name) {
   if (files.has(name)) return files.get(name);
   const token = renderToken;
-  const response = await fetch(`${DATA}${name}`);
-  if (!response.ok) throw new Error(name);
-  const data = await response.json();
+  let data = null;
+  for (const base of DATA_SOURCES) {
+    try {
+      const response = await fetch(`${base}${name}`);
+      if (!response.ok) continue;
+      data = await response.json();
+      break;
+    } catch {}
+  }
+  if (data === null) throw new Error(`داده ${name} نیامد`);
   files.set(name, data);
   if (token !== renderToken) throw STALE;
   return data;
@@ -265,6 +272,24 @@ function routeName() {
   return (location.hash || "#/").replace(/^#\/?/, "").split(/[/?]/)[0];
 }
 
+const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+const SKIP_DIGITS = new Set(["TEXTAREA", "INPUT", "SCRIPT", "STYLE", "CODE"]);
+function persianDigits(node) {
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+    acceptNode: (text) => (/[0-9]/.test(text.nodeValue) && !SKIP_DIGITS.has(text.parentNode?.nodeName) && !text.parentNode?.closest?.(".latin") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+  });
+  const list = [];
+  while (walker.nextNode()) list.push(walker.currentNode);
+  for (const text of list) text.nodeValue = text.nodeValue.replace(/[0-9]/g, (digit) => PERSIAN_DIGITS[digit]);
+}
+new MutationObserver((records) => {
+  for (const record of records) {
+    if (record.type === "characterData") persianDigits(record.target.parentNode || record.target);
+    else record.addedNodes.forEach((added) => (added.nodeType === 3 ? persianDigits(added.parentNode) : added.nodeType === 1 && persianDigits(added)));
+  }
+}).observe(document.body, { childList: true, subtree: true, characterData: true });
+persianDigits(document.body);
+
 function paint(title, html, quiet = false) {
   document.title = `${title} — گنجور نو`;
   document.body.classList.toggle("quiet", quiet);
@@ -354,8 +379,9 @@ async function home() {
      <h2 class="section">ابزارها</h2>
      <div class="toolbelt">${HOME_TOOLS.map(([href, title, text, icon]) => `<a class="tool" href="${href}"><span class="tool-icon" aria-hidden="true">${icon}</span><strong>${title}</strong><small>${text}</small></a>`).join("")}</div>
      <p><a href="#/discover">همه ابزارها، دسته به دسته</a></p>
-     <h2 class="section">همه شاعران · ${fa(everyone.length)}</h2>
-     <div class="faces">${everyone.map(poetFace).join("")}</div>
+     <h2 class="section">شاعران نامدار</h2>
+     <div class="faces">${everyone.slice(0, 12).map(poetFace).join("")}</div>
+     <p class="more"><a class="btn" href="#/poets">همه ${fa(everyone.length)} شاعر</a></p>
      <h2 class="section">پیمایش بر اساس قرن</h2>
      <div class="cents">${centuries.map((item) => `<a class="cent" href="#/poets?c=${item}">قرن ${item}</a>`).join("")}</div>
      <p class="note">متن و صوت از <a href="https://ganjoor.net" rel="noreferrer">گنجور</a> می‌آید. این سایت رسمی گنجور نیست؛ طراحی و ساختش با مریم جابری است.</p>`,
@@ -552,12 +578,14 @@ async function poemPage(id, query) {
          <h1>${esc(poem.title)}</h1>
          <div class="ornament" aria-hidden="true"></div>
          <p class="byline">${esc(poet.name || "")}</p>
-         <p class="chips">
-           ${count ? `<span class="chip">${count} بیت</span>` : ""}
-           ${metre ? `<a class="chip" href="#/vazn?id=${metre.id}">${esc(metre.rhythm)}</a>` : ""}
-           ${rhyme ? `<span class="chip">قافیه ${esc(rhyme)}</span>` : ""}
-           ${poem.sourceName ? `<span class="chip">منبع: ${esc(poem.sourceName)}</span>` : ""}
-         </p>
+         <p class="meta">${[
+           count ? `${fa(count)} بیت` : "",
+           metre ? `<a href="#/vazn?id=${metre.id}" title="همه شعرهای این وزن">${esc(metre.rhythm)}</a>` : "",
+           rhyme ? `قافیه «${esc(rhyme)}»` : "",
+           poem.sourceName ? `منبع: ${esc(poem.sourceName)}` : "",
+         ]
+           .filter(Boolean)
+           .join(`<span aria-hidden="true"> · </span>`)}</p>
          ${brief ? `<p class="lead summary">${esc(brief.length > 220 ? `${brief.slice(0, 220)}…` : brief)}</p>` : ""}
          <div class="poem" id="verses">${lines
            .map(
@@ -565,10 +593,11 @@ async function poemPage(id, query) {
                `<p class="verse ${line.end ? "end" : ""}" data-order="${line.order}" data-couplet="${line.couplet}" data-m="${line.misra}">${words(line.text)}</p>`,
            )
            .join("")}</div>
-         <p class="muted">روی بیت بزن تا شرح همان بیت بیاید. روی واژه بزن تا در شعرهای دیگر پیدا شود.</p>
+         <p class="muted hint">روی بیت بزن تا شرحش بیاید؛ روی واژه بزن تا جای دیگرش را ببینی.</p>
          <div class="dock">
-           <button class="btn" id="mark" type="button">${marked ? "نشان شد" : "نشان"}</button>
-           <button class="btn primary" id="quiet" type="button">${quiet ? "بازگشت" : "اتاق خلوت"}</button>
+           ${recitations.length ? `<button class="btn primary" id="listen" type="button" aria-pressed="false">▶ گوش بده</button>` : ""}
+           <button class="btn" id="mark" type="button" aria-pressed="${marked}">${marked ? "★ نشان شد" : "☆ نشان"}</button>
+           <button class="btn" id="quiet" type="button">${quiet ? "بازگشت" : "اتاق خلوت"}</button>
            ${poem.previous ? `<a class="btn" href="#/poem/${poem.previous.id}">قبلی</a>` : ""}
            ${poem.next ? `<a class="btn" href="#/poem/${poem.next.id}">بعدی</a>` : ""}
          </div>
@@ -582,6 +611,7 @@ async function poemPage(id, query) {
            ${poem.next ? `<a href="#/poem/${poem.next.id}">بعدی</a>` : ""}
          </nav>
          <div class="panel" id="side">
+           <div class="side-head"><strong id="side-title">بیت ۱</strong><button class="close" id="side-close" type="button" aria-label="بستن">×</button></div>
            <div class="tabs" id="tabs">
              <button class="chip on" type="button" data-tab="mean">معنی</button>
              <button class="chip" type="button" data-tab="quote">تضمین${quotes.length + related.length ? ` ${quotes.length + related.length}` : ""}</button>
@@ -610,8 +640,25 @@ async function poemPage(id, query) {
   let tab = "mean";
   let activeCouplet = lines[0]?.couplet ?? 0;
   const pane = document.querySelector("#pane");
+  const side = document.querySelector("#side");
+  const narrow = () => window.matchMedia("(max-width: 959px)").matches;
+  function openSheet() {
+    if (!narrow()) return;
+    side.classList.add("open");
+    document.body.classList.add("sheet-on");
+  }
+  function closeSheet() {
+    side.classList.remove("open");
+    document.body.classList.remove("sheet-on");
+  }
+  document.querySelector("#side-close").onclick = closeSheet;
+  document.onkeydown = (event) => {
+    if (event.key === "Escape") closeSheet();
+  };
   function markCouplet() {
     document.querySelectorAll(".verse").forEach((node) => node.classList.toggle("pick", Number(node.dataset.couplet) === activeCouplet));
+    const title = document.querySelector("#side-title");
+    if (title) title.textContent = `بیت ${fa(activeCouplet + 1)}`;
   }
   let tagsCache = null;
   async function poemTags() {
@@ -767,6 +814,7 @@ async function poemPage(id, query) {
     if (!verse) return;
     activeCouplet = Number(verse.dataset.couplet);
     markCouplet();
+    openSheet();
     if (word) {
       tab = "mirror";
       const term = bare(word.textContent || "");
@@ -794,7 +842,9 @@ async function poemPage(id, query) {
   renderPane();
   document.querySelector("#mark").onclick = (event) => {
     store.toggle(poem.id);
-    event.currentTarget.textContent = store.get().marks.includes(poem.id) ? "نشان شد" : "نشان";
+    const on = store.get().marks.includes(poem.id);
+    event.currentTarget.textContent = on ? "★ نشان شد" : "☆ نشان";
+    event.currentTarget.setAttribute("aria-pressed", String(on));
   };
   document.querySelector("#quiet").onclick = () => {
     location.hash = quiet ? `#/poem/${poem.id}` : `#/poem/${poem.id}?quiet=1`;
@@ -839,6 +889,16 @@ async function poemPage(id, query) {
         node.classList.toggle("on", on);
       });
     };
+    const listen = document.querySelector("#listen");
+    const syncListen = () => {
+      if (!listen) return;
+      listen.textContent = player.paused ? "▶ گوش بده" : "❚❚ مکث";
+      listen.setAttribute("aria-pressed", String(!player.paused));
+    };
+    if (listen) listen.onclick = () => (player.paused ? player.play() : player.pause());
+    player.onplay = syncListen;
+    player.onpause = syncListen;
+    player.onended = syncListen;
     loadSync(recitations[0]);
   }
 }
@@ -849,8 +909,18 @@ async function searchPage(query) {
   const poetId = Number(query.get("poet") || 0);
   const poetPart = poetId ? `&poet=${poetId}` : "";
   if (!q) {
-    paint("جستجو", `<h1>جستجو</h1><p class="lead">یک واژه یا تکه‌ای از بیت را بنویس.</p>`);
+    paint(
+      "جستجو",
+      `<h1>جستجو</h1><p class="lead">یک واژه یا تکه‌ای از بیت را بنویس.</p>
+       <form class="big-search" id="page-search"><input name="q" placeholder="مثلاً سرو، یا: بشنو از نی" aria-label="جستجو" autofocus /><button class="btn primary" type="submit">جستجو</button></form>
+       <p class="chips">${["بشنو از نی", "سرو", "مستی", "توانا بود", "رند"].map((word) => `<a class="chip" href="#/search?q=${encodeURIComponent(word)}">${word}</a>`).join("")}</p>`,
+    );
     if (input) input.value = "";
+    document.querySelector("#page-search").onsubmit = (event) => {
+      event.preventDefault();
+      const value = String(new FormData(event.currentTarget).get("q") || "").trim();
+      if (value) location.hash = `#/search?q=${encodeURIComponent(value)}`;
+    };
     return;
   }
   loading("جستجو");
@@ -928,7 +998,7 @@ async function mapPage(query) {
        <div class="year-top"><span>سفر در زمان</span><strong id="year-label">سال ${year} هجری</strong></div>
      <div class="scale">
        <input id="year" type="range" min="${min}" max="${max}" value="${year}" />
-       <div class="ticks">${ticks.map((mark) => `<span style="left:${((mark - min) / (max - min)) * 100}%">${mark}</span>`).join("")}</div>
+       <div class="ticks">${ticks.map((mark) => `<span class="${mark % 200 ? "minor" : ""}" style="left:${((mark - min) / (max - min)) * 100}%">${mark}</span>`).join("")}</div>
      </div>
      </div>
      <div class="atlas realm" aria-label="گستره شهرهای شعر فارسی">${dots || `<p class="muted empty-map">در این سال کسی در این گستره نیست.</p>`}</div>
@@ -1634,6 +1704,8 @@ async function devicePage(id, query) {
   const pages = Math.ceil((page.total || 0) / size);
   const conceptName = concept ? top.find((item) => item.conceptId === concept)?.name || pairs.find((row) => row.a === concept)?.aName || pairs.find((row) => row.b === concept)?.bName || "" : "";
   const here = (p) => `#/device/${id}?${concept ? `c=${concept}&` : ""}p=${p}`;
+  const pairLink = (row) =>
+    `<a class="pair ${concept === row.a ? "on" : ""}" href="#/device/${id}?c=${row.a}"><b>${esc(row.aName)}</b><span aria-hidden="true">←</span><b>${esc(row.bName)}</b><small>${fa(row.n)}</small></a>`;
   const card = (item) => {
     const spans = (misra) =>
       (item.parts || [])
@@ -1656,17 +1728,20 @@ async function devicePage(id, query) {
      ${
        pairs.length
          ? `<h2 class="section">${Number(id) === 1 ? "چه چیز به چه مانند شده" : "جفت‌های پرتکرار"}</h2>
-            <div class="pairs">${pairs
-              .slice(0, 24)
-              .map((row) => `<a class="pair ${concept === row.a ? "on" : ""}" href="#/device/${id}?c=${row.a}"><b>${esc(row.aName)}</b><span>←</span><b>${esc(row.bName)}</b><small>${fa(row.n)}</small></a>`)
-              .join("")}</div>`
+            <div class="pairs">${pairs.slice(0, 8).map(pairLink).join("")}</div>
+            ${pairs.length > 8 ? `<details class="more-box"><summary>${fa(Math.min(pairs.length, 40) - 8)} جفت دیگر</summary><div class="pairs">${pairs.slice(8, 40).map(pairLink).join("")}</div></details>` : ""}`
          : ""
      }
-     ${top.length ? `<h2 class="section">مفهوم‌ها</h2><p class="chips"><a class="chip ${concept ? "" : "on"}" href="#/device/${id}">همه</a>${top.map((item) => `<a class="chip ${item.conceptId === concept ? "on" : ""}" href="#/device/${id}?c=${item.conceptId}">${esc(item.name)} · ${fa(item.usageCount)}</a>`).join("")}</p>` : ""}
-     <h2 class="section">نمونه‌ها · ${(page.total || 0).toLocaleString("fa-IR")}</h2>
+     ${
+       top.length
+         ? `<details class="more-box" ${concept ? "open" : ""}><summary>پالایش با مفهوم${conceptName ? `: ${esc(conceptName)}` : ""}</summary><p class="chips"><a class="chip ${concept ? "" : "on"}" href="#/device/${id}">همه</a>${top.map((item) => `<a class="chip ${item.conceptId === concept ? "on" : ""}" href="#/device/${id}?c=${item.conceptId}">${esc(item.name)} · ${fa(item.usageCount)}</a>`).join("")}</p></details>`
+         : ""
+     }
+     <h2 class="section" id="samples">نمونه‌ها${conceptName ? ` با «${esc(conceptName)}»` : ""} · ${fa(page.total || 0)}</h2>
      ${items.length ? `<div class="grid">${items.map(card).join("")}</div>` : `<p class="muted">نمونه‌ای ثبت نشده.</p>`}
      ${pages > 1 ? `<p class="chips">${pageNo > 1 ? `<a class="chip" href="${here(pageNo - 1)}">قبلی</a>` : ""}<span class="chip">صفحه ${pageNo} از ${pages}</span>${pageNo < pages ? `<a class="chip" href="${here(pageNo + 1)}">بعدی</a>` : ""}</p>` : ""}`,
   );
+  if (concept || pageNo > 1) document.querySelector("#samples")?.scrollIntoView();
 }
 
 async function placesPage() {
