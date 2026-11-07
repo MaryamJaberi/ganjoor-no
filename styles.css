@@ -636,3 +636,6 @@ button.hit { width: 100%; text-align: start; font: inherit; margin-bottom: 8px; 
 .card, .hit { transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s; }
 a.card:hover, a.hit:hover { box-shadow: 0 6px 16px rgba(20, 30, 40, 0.08); transform: translateY(-1px); }
 .card .kicker { margin-bottom: 2px; }
+.faal-poem .verse { margin: 6px 0; line-height: 2.1; }
+.faal-poem .verse.end { margin-bottom: 18px; }
+.faal-poem h2 { color: var(--turquoise); }

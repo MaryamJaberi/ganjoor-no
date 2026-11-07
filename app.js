@@ -393,7 +393,7 @@ async function home() {
      <div class="toolbelt">${HOME_TOOLS.map(([href, title, text, icon]) => `<a class="tool" href="${href}"><span class="tool-icon" aria-hidden="true">${icon}</span><strong>${title}</strong><small>${text}</small></a>`).join("")}</div>
      <p><a href="#/discover">همه ابزارها، دسته به دسته</a></p>
      <h2 class="section">شاعران نامدار</h2>
-     <div class="faces">${FAMOUS.map((name) => poets.find((poet) => (poet.nickname || poet.name || "").includes(name)))
+     <div class="faces">${FAMOUS.map((name) => poets.find((poet) => poet.nickname === name) || poets.find((poet) => (poet.nickname || poet.name || "").startsWith(name)))
        .filter(Boolean)
        .slice(0, 12)
        .map(poetFace)
@@ -1518,6 +1518,7 @@ async function faalPage() {
         .map((line, index) => `<p class="verse ${index % 2 ? "end" : ""}">${esc(line)}</p>`)
         .join("")}</div><p class="chips"><a class="btn primary" href="#/poem/${poem.id}">خواندن با صوت و شرح</a></p></article>`;
       go.textContent = "فال دیگر";
+      out.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
       out.innerHTML = `<p class="muted">فال نیامد. ${esc(error.message)}</p>`;
       go.textContent = "دوباره";
