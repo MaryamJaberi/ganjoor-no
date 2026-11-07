@@ -583,6 +583,7 @@ async function poemPage(id, query) {
            metre ? `<a href="#/vazn?id=${metre.id}" title="همه شعرهای این وزن">${esc(metre.rhythm)}</a>` : "",
            rhyme ? `قافیه «${esc(rhyme)}»` : "",
            poem.sourceName ? `منبع: ${esc(poem.sourceName)}` : "",
+           `<a href="https://ganjoor.net${esc(poem.fullUrl)}" rel="noreferrer">در گنجور</a>`,
          ]
            .filter(Boolean)
            .join(`<span aria-hidden="true"> · </span>`)}</p>

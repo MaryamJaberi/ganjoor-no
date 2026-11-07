@@ -546,3 +546,9 @@ button.hit { width: 100%; text-align: start; font: inherit; margin-bottom: 8px; 
 }
 @keyframes sheet-up { from { transform: translateY(30%); opacity: 0.4; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { #side.open { animation: none; } }
+.rail { display: none; }
+@media (min-width: 800px) { .toolbelt { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 960px) {
+  .side-head { display: flex; }
+  .side-head .close { display: none; }
+}
