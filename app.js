@@ -341,6 +341,19 @@ function poetFace(poet) {
   return `<a class="face" href="#/poet/${poet.id}"><span class="medal">${img}<b>${letter}</b></span><strong>${esc(poet.nickname || poet.name)}</strong><small>${esc(poet.birthPlace || "")}${years ? " · " + years : ""}</small></a>`;
 }
 
+const ROSETTE = (() => {
+  const petals = Array.from({ length: 16 }, (_, i) => `<path d="M100 100 L100 18 Q112 52 100 100" transform="rotate(${i * 22.5} 100 100)" />`).join("");
+  const star = (r, rot) =>
+    Array.from({ length: 16 }, (_, i) => {
+      const a = ((i * 22.5 + rot) * Math.PI) / 180;
+      const rr = i % 2 ? r * 0.72 : r;
+      return `${(100 + Math.sin(a) * rr).toFixed(1)},${(100 - Math.cos(a) * rr).toFixed(1)}`;
+    }).join(" ");
+  return `<svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="96" class="ro-ring" /><circle cx="100" cy="100" r="88" class="ro-ring thin" /><g class="ro-petals">${petals}</g><polygon class="ro-star" points="${star(64, 0)}" /><polygon class="ro-star2" points="${star(40, 11.25)}" /><circle cx="100" cy="100" r="16" class="ro-core" /></svg>`;
+})();
+
+const FAMOUS = ["فردوسی", "رودکی", "خیام", "مولانا", "سعدی", "حافظ", "عطار", "نظامی", "سنایی", "ناصرخسرو", "جامی", "صائب", "پروین", "شهریار", "ایرج", "وحشی"];
+
 async function home() {
   loading("خانه");
   const [{ data: poets }, bit] = await Promise.all([
@@ -373,14 +386,18 @@ async function home() {
            <a class="chip" href="#/discover">همه ابزارها</a>
          </p>
        </div>
-       <a class="calligraphy" href="#/poet/2">حافظ</a>
+       <div class="rosette" aria-hidden="true">${ROSETTE}</div>
      </section>
      ${opening(bit)}
      <h2 class="section">ابزارها</h2>
      <div class="toolbelt">${HOME_TOOLS.map(([href, title, text, icon]) => `<a class="tool" href="${href}"><span class="tool-icon" aria-hidden="true">${icon}</span><strong>${title}</strong><small>${text}</small></a>`).join("")}</div>
      <p><a href="#/discover">همه ابزارها، دسته به دسته</a></p>
      <h2 class="section">شاعران نامدار</h2>
-     <div class="faces">${everyone.slice(0, 12).map(poetFace).join("")}</div>
+     <div class="faces">${FAMOUS.map((name) => poets.find((poet) => poet.nickname === name) || poets.find((poet) => (poet.nickname || poet.name || "").startsWith(name)))
+       .filter(Boolean)
+       .slice(0, 12)
+       .map(poetFace)
+       .join("")}</div>
      <p class="more"><a class="btn" href="#/poets">همه ${fa(everyone.length)} شاعر</a></p>
      <h2 class="section">پیمایش بر اساس قرن</h2>
      <div class="cents">${centuries.map((item) => `<a class="cent" href="#/poets?c=${item}">قرن ${item}</a>`).join("")}</div>
@@ -440,7 +457,7 @@ async function poetPage(id) {
   const children = cat.children || [];
   const poems = cat.poems || [];
   const books = children
-    .map((book, index) => `<a class="cover c${index % 4}" href="#/cat/${book.id}"><small>بخش</small><strong>${esc(book.title)}</strong></a>`)
+    .map((book, index) => `<a class="cover c${index % 4}" href="#/cat/${book.id}"><strong>${esc(book.title)}</strong><small>خواندن ←</small></a>`)
     .join("");
   const loose = poems
     .map((poem) => `<a class="hit" href="#/poem/${poem.id}"><strong>${esc(poem.title)}</strong><p>${esc(poem.excerpt || "")}</p></a>`)
@@ -1364,37 +1381,37 @@ const TOOL_GROUPS = [
     title: "زمان و مکان",
     about: "شاعران و شعرها روی نقشه و در گذر سال‌ها.",
     tools: [
-      ["#/map", "نقشه هم‌عصران", "سال را جابه‌جا کن و زادگاه شاعران زنده آن سال را ببین."],
-      ["#/places", "جای‌ها در شعر", "شهرها و سال‌هایی که روی بیت‌ها برچسب خورده، روی یک نقشه."],
-      ["#/tree", "درخت شاعران", "همه شاعران، شاخه به شاخه بر اساس قرن."],
+      ["#/map", "نقشه هم‌عصران", "سال را جابه‌جا کن و زادگاه شاعران زنده آن سال را ببین.", "◎"],
+      ["#/places", "جای‌ها در شعر", "شهرها و سال‌هایی که روی بیت‌ها برچسب خورده، روی یک نقشه.", "⌖"],
+      ["#/tree", "درخت شاعران", "همه ۲۴۵ شاعر در جدول قرن و سرزمین؛ روی هر نام بزن تا هم‌عصرانش روشن شوند.", "❦"],
     ],
   },
   {
     title: "پیوندها",
     about: "چه کسی از چه کسی گرفت، و آدم‌های درون شعر با هم چه نسبتی دارند.",
     tools: [
-      ["#/bridges/2", "پل‌های تضمین", "تضمین‌ها و بیت‌های مشترک هر شاعر با دیگران، با شمار واقعی."],
-      ["#/people", "مردمان شعر", "۶۶۲ شخصیت، بیشتر از شاهنامه: خاندان، پیوندها و بیت‌هایی که از آن‌ها نام برده‌اند."],
+      ["#/bridges/2", "پل‌های تضمین", "تضمین‌ها و بیت‌های مشترک هر شاعر با دیگران، با شمار واقعی.", "⇄"],
+      ["#/people", "مردمان شعر", "۶۶۲ شخصیت، بیشتر از شاهنامه: خاندان، پیوندها و بیت‌هایی که از آن‌ها نام برده‌اند.", "♙"],
     ],
   },
   {
     title: "زبان و صناعت",
     about: "وزن، واژه و آرایه؛ ابزار کسی که می‌خواهد ببیند شعر چطور ساخته شده.",
     tools: [
-      ["#/vazn", "وزن‌ها", "همه بحرها با شمار مصراع، و شعرهای هر وزن."],
-      ["#/devices", "آرایه‌ها", "تشبیه، استعاره، کنایه و ایهام، با نمونه‌های واقعی و جفت‌های «این به آن مانند شده»."],
-      ["#/words", "واژه‌سنج", "یک واژه، و اینکه کدام شاعر بیشتر از همه گفته‌اش."],
-      ["#/layers", "خوانش دولایه", "چند شعر نامدار با معنی ساده و معنی رمزی هر بیت، کنار قالب‌ها و واژه‌های کلیدی."],
+      ["#/vazn", "وزن‌ها", "همه بحرها با شمار مصراع، و شعرهای هر وزن.", "♪"],
+      ["#/devices", "آرایه‌ها", "تشبیه، استعاره، کنایه و ایهام، با نمونه‌های واقعی و جفت‌های «این به آن مانند شده».", "✦"],
+      ["#/words", "واژه‌سنج", "یک واژه، و اینکه کدام شاعر بیشتر از همه گفته‌اش.", "≋"],
+      ["#/layers", "خوانش دولایه", "چند شعر نامدار با معنی ساده و معنی رمزی هر بیت، کنار قالب‌ها و واژه‌های کلیدی.", "◐"],
     ],
   },
   {
     title: "خواندن",
     about: "راه‌های سبک برای رسیدن به یک شعر.",
     tools: [
-      ["#/faal", "فال حافظ", "نیت کن و یک غزل بگیر."],
-      ["#/search", "جستجو", "واژه یا تکه‌ای از بیت در همه شعرها."],
-      ["#/library", "کتابخانه من", "نشان‌ها، یادداشت‌ها و شعرهای خوانده‌شده روی همین دستگاه."],
-      ["#/data", "داده‌ها", "فهرست همه داده‌هایی که این ابزارها از آن ساخته شده‌اند."],
+      ["#/faal", "فال حافظ", "نیت کن و یک غزل بگیر.", "✧"],
+      ["#/search", "جستجو", "واژه یا تکه‌ای از بیت در همه شعرها.", "⌕"],
+      ["#/library", "کتابخانه من", "نشان‌ها، یادداشت‌ها و شعرهای خوانده‌شده روی همین دستگاه.", "☆"],
+      ["#/data", "داده‌ها", "فهرست همه داده‌هایی که این ابزارها از آن ساخته شده‌اند.", "▤"],
     ],
   },
 ];
@@ -1406,7 +1423,7 @@ function discoverPage() {
      <p class="lead">راه‌های دیدن گنجینه، غیر از خواندن خطی. هر ابزار از داده باز گنجور ساخته شده؛ فهرستش در <a href="#/data">داده‌ها</a> هست.</p>
      ${TOOL_GROUPS.map(
        (group) => `<h2 class="section">${group.title}</h2><p class="muted">${group.about}</p>
-         <div class="grid cards">${group.tools.map(([href, title, text]) => `<a class="card" href="${href}"><strong>${title}</strong><div class="muted">${text}</div></a>`).join("")}</div>`,
+         <div class="toolbelt wide">${group.tools.map(([href, title, text, icon]) => `<a class="tool" href="${href}"><span class="tool-icon" aria-hidden="true">${icon || "•"}</span><strong>${title}</strong><small>${text}</small></a>`).join("")}</div>`,
      ).join("")}
      <p class="note">داخل صفحه هر شعر هم ابزار هست: معنی بیت، تضمین، هم‌وزن، آرایه، موسیقی، حاشیه و آینه واژه. روی بیت یا واژه بزن.</p>`,
   );
@@ -1501,6 +1518,7 @@ async function faalPage() {
         .map((line, index) => `<p class="verse ${index % 2 ? "end" : ""}">${esc(line)}</p>`)
         .join("")}</div><p class="chips"><a class="btn primary" href="#/poem/${poem.id}">خواندن با صوت و شرح</a></p></article>`;
       go.textContent = "فال دیگر";
+      out.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
       out.innerHTML = `<p class="muted">فال نیامد. ${esc(error.message)}</p>`;
       go.textContent = "دوباره";
