@@ -594,3 +594,4 @@ button.hit { width: 100%; text-align: start; font: inherit; margin-bottom: 8px; 
   .ring .cell::before { content: attr(data-region); flex-basis: 100%; font-size: 0.75rem; font-weight: 600; color: var(--tone); }
   .focus { top: 60px; }
 }
+.grove.dim .twig.picked b { color: #fffdf8; }
