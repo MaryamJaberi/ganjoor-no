@@ -642,10 +642,17 @@ async function poemPage(id, query) {
   const pane = document.querySelector("#pane");
   const side = document.querySelector("#side");
   const narrow = () => window.matchMedia("(max-width: 959px)").matches;
+  function showAboveSheet(node) {
+    if (!node || !side.classList.contains("open")) return;
+    const box = node.getBoundingClientRect();
+    const room = window.innerHeight - side.getBoundingClientRect().height;
+    if (box.top < 70 || box.bottom > room - 8) window.scrollBy({ top: box.top - Math.max(70, (room - box.height) / 2), behavior: "smooth" });
+  }
   function openSheet() {
     if (!narrow()) return;
     side.classList.add("open");
     document.body.classList.add("sheet-on");
+    showAboveSheet(document.querySelector(".verse.pick"));
   }
   function closeSheet() {
     side.classList.remove("open");
@@ -675,7 +682,8 @@ async function poemPage(id, query) {
       const verse = document.querySelector(`.verse[data-couplet="${part.coupletIndex}"][data-m="${part.misra}"]`);
       if (!verse) continue;
       for (let w = part.wordStart; w <= (part.wordEnd || part.wordStart); w += 1) verse.querySelector(`.word[data-w="${w}"]`)?.classList.add("hl");
-      verse.scrollIntoView({ block: "nearest" });
+      if (side.classList.contains("open")) showAboveSheet(verse);
+      else verse.scrollIntoView({ block: "nearest" });
     }
   }
   poemTags()
