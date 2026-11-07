@@ -552,3 +552,45 @@ button.hit { width: 100%; text-align: start; font: inherit; margin-bottom: 8px; 
   .side-head { display: flex; }
   .side-head .close { display: none; }
 }
+
+/* درخت شاعران: قرن × سرزمین */
+.tree-tools { display: grid; gap: 4px; margin: 8px 0 12px; }
+.tree-tools .big-search { margin: 0; }
+.chip .dot, .grove .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--tone, var(--turquoise)); margin-inline-end: 6px; vertical-align: middle; }
+.switch { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--muted); cursor: pointer; }
+.switch input { width: 18px; height: 18px; accent-color: var(--turquoise); }
+.focus { position: sticky; top: 72px; z-index: 5; background: var(--card); border: 1px solid var(--turquoise); border-radius: 14px; padding: 12px 16px; margin: 8px 0 12px; box-shadow: 0 8px 24px rgba(20, 30, 40, 0.12); }
+.focus p { margin: 6px 0 0; }
+.grove { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--card); }
+.ring { display: grid; grid-template-columns: 5.5rem repeat(var(--cols), minmax(0, 1fr)); border-top: 1px solid var(--line); }
+.ring.head { border-top: 0; position: sticky; top: 64px; z-index: 2; background: var(--soft); font-size: 0.85rem; font-weight: 600; }
+.ring[hidden] { display: none; }
+.ring .age { display: grid; align-content: start; gap: 2px; padding: 10px 8px; background: #f5ecdb; border-inline-end: 3px solid #8a6a3a; }
+.ring .age b { font-size: 0.95rem; }
+.ring .age small { color: var(--muted); font-size: 0.75rem; }
+.ring .cell { display: flex; flex-wrap: wrap; align-content: start; gap: 6px; padding: 8px; border-inline-start: 1px dashed var(--line); min-height: 2.5rem; }
+.ring.head .cell { align-items: center; min-height: 0; }
+.cell.loose { display: flex; flex-wrap: wrap; gap: 6px; }
+.twig {
+  display: inline-grid; gap: 0; text-align: start; font: inherit; cursor: pointer; padding: 4px 10px; min-height: 36px;
+  background: #fffdf8; color: var(--ink); border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent);
+  border-inline-start: 4px solid var(--tone); border-radius: 10px; transition: opacity 0.15s, transform 0.15s;
+}
+.twig b { font-size: 0.9rem; font-weight: 600; }
+.twig small { color: var(--muted); font-size: 0.7rem; }
+.twig.famous b { color: var(--tone); }
+.twig:hover, .twig:focus-visible { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(20, 30, 40, 0.12); }
+.twig[hidden] { display: none; }
+.grove.dim .twig { opacity: 0.28; }
+.grove.dim .twig.peer { opacity: 1; background: color-mix(in srgb, var(--tone) 12%, #fffdf8); }
+.grove.dim .twig.picked { opacity: 1; background: var(--tone); color: #fffdf8; }
+.grove.dim .twig.picked small { color: #fffdf8; }
+@media (max-width: 760px) {
+  .ring { grid-template-columns: 1fr; }
+  .ring.head { display: none; }
+  .ring .age { grid-auto-flow: column; justify-content: space-between; border-inline-end: 0; border-bottom: 2px solid #8a6a3a; position: sticky; top: 56px; z-index: 1; }
+  .ring .cell { border-inline-start: 0; border-top: 1px dashed var(--line); padding: 6px 8px 10px; }
+  .ring .cell.empty { display: none; }
+  .ring .cell::before { content: attr(data-region); flex-basis: 100%; font-size: 0.75rem; font-weight: 600; color: var(--tone); }
+  .focus { top: 60px; }
+}

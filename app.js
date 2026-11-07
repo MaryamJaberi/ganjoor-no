@@ -462,7 +462,7 @@ async function poetPage(id) {
        ${children[0] ? `<a class="btn primary" href="#/cat/${children[0].id}">شروع از ${esc(children[0].title)}</a>` : ""}
        <a class="chip" href="https://ganjoor.net${esc(poet.fullUrl)}" rel="noreferrer">در گنجور</a>
        ${poet.birthYearInLHijri ? `<a class="chip" href="#/map?y=${Math.round(((poet.birthYearInLHijri || 0) + (poet.deathYearInLHijri || poet.birthYearInLHijri)) / 2)}">هم‌عصران این سال‌ها</a>` : ""}
-       <a class="chip" href="#/bridges/${poet.id}">پل‌های ثبت‌شده</a>
+       <a class="chip" href="#/bridges/${poet.id}">پل‌های ثبت‌شده</a><a class="chip" href="#/tree?poet=${poet.id}">جای او در درخت</a>
      </p>
      ${books ? `<h2 class="section">آثار</h2><div class="covers">${books}</div>` : ""}
      ${loose ? `<h2 class="section">شعرها</h2><div class="grid">${loose}</div>` : ""}`,
@@ -1211,59 +1211,143 @@ async function vaznPage(query) {
   draw();
 }
 
-async function treePage() {
-  loading("درخت");
-  const { data: poets } = await api("/poets");
-  const pick = (name) => poets.find((poet) => `${poet.nickname || ""} ${poet.name || ""}`.includes(name));
-  const spots = [
-    ["فردوسی", "حماسه", 50, 12, ""],
-    ["سعدی", "غزل", 84, 32, "lapis"],
-    ["حافظ", "غزل", 84, 56, ""],
-    ["عطار", "عرفان", 68, 76, "lapis"],
-    ["خیام", "رباعی", 16, 32, ""],
-    ["مولانا", "مثنوی", 16, 56, "lapis"],
-    ["نظامی", "مثنوی", 32, 76, ""],
-    ["رودکی", "ریشه", 50, 92, "lapis"],
-  ];
-  const leaves = spots
-    .map(([name, kind, x, y, tone]) => {
-      const poet = pick(name);
-      if (!poet) return "";
-      return `<a class="leaf ${tone}" style="left:${x}%;top:${y}%" href="#/poet/${poet.id}"><i></i><b>${esc(poet.nickname || poet.name)}</b><small>${kind}</small></a>`;
+const REGIONS = [
+  { key: "rum", name: "روم و عراق", color: "#7a3b5c" },
+  { key: "azar", name: "آذربایجان و غرب", color: "#9a7433" },
+  { key: "center", name: "عراق عجم و شمال", color: "#1c39bb" },
+  { key: "fars", name: "فارس و کرمان", color: "#b2532f" },
+  { key: "khorasan", name: "خراسان و فرارود", color: "#0a6b60" },
+  { key: "hind", name: "هند", color: "#5b6b1f" },
+  { key: "none", name: "بی‌نشان", color: "#8a8174" },
+];
+
+function regionOf(poet) {
+  const lat = poet.birthPlaceLatitude;
+  const lon = poet.birthPlaceLongitude;
+  if (!lat || !lon) return "none";
+  if (lon < 45) return "rum";
+  if (lon < 48.5) return "azar";
+  if (lon >= 66 && lat < 33) return "hind";
+  if ((lon >= 56 && lat >= 32.5) || lon >= 60.5) return "khorasan";
+  if (lat < 32.3) return "fars";
+  return "center";
+}
+
+function bornOf(poet) {
+  if (poet.birthYearInLHijri) return poet.birthYearInLHijri;
+  if (poet.deathYearInLHijri) return Math.max(1, poet.deathYearInLHijri - 60);
+  return 0;
+}
+
+async function treePage(query) {
+  loading("درخت شاعران");
+  const { data } = await api("/poets");
+  const poets = data
+    .filter((poet) => poet.published !== false)
+    .map((poet) => ({ ...poet, born: bornOf(poet), region: regionOf(poet), guess: !poet.birthYearInLHijri || !poet.validBirthDate }));
+  const dated = poets.filter((poet) => poet.born);
+  const undated = poets.filter((poet) => !poet.born);
+  const centuries = [...new Set(dated.map((poet) => centuryOf(poet.born)))].sort((a, b) => a - b);
+  const used = REGIONS.filter((region) => poets.some((poet) => poet.region === region.key));
+  const regionName = new Map(REGIONS.map((region) => [region.key, region]));
+  const leaf = (poet) => {
+    const region = regionName.get(poet.region);
+    const years = poet.birthYearInLHijri || poet.deathYearInLHijri ? `${poet.birthYearInLHijri || "؟"}–${poet.deathYearInLHijri || "؟"}` : "";
+    return `<button class="twig ${poet.pinOrder ? "famous" : ""}" type="button" data-id="${poet.id}" style="--tone:${region.color}" title="${esc(poet.name)}${poet.birthPlace ? ` · ${esc(poet.birthPlace)}` : ""}"><b>${esc(poet.nickname || poet.name)}</b>${years ? `<small>${years}${poet.guess ? " ؟" : ""}</small>` : ""}</button>`;
+  };
+  const rows = centuries
+    .map((century) => {
+      const inCentury = dated.filter((poet) => centuryOf(poet.born) === century);
+      const cells = used
+        .map((region) => {
+          const list = inCentury.filter((poet) => poet.region === region.key).sort((a, b) => a.born - b.born);
+          return `<div class="cell ${list.length ? "" : "empty"}" data-region="${esc(region.name)}" style="--tone:${region.color}">${list.map(leaf).join("")}</div>`;
+        })
+        .join("");
+      return `<div class="ring" data-century="${century}"><div class="age"><b>قرن ${century}</b><small>${inCentury.length} شاعر</small></div>${cells}</div>`;
     })
     .join("");
-  const centuries = [...new Set(poets.map((poet) => centuryOf(poet.birthYearInLHijri)).filter(Boolean))].sort((a, b) => a - b);
-  const byCentury = (century) =>
-    poets
-      .filter((poet) => centuryOf(poet.birthYearInLHijri) === century)
-      .sort((a, b) => a.birthYearInLHijri - b.birthYearInLHijri);
-  const roster = centuries
-    .map(
-      (century) =>
-        `<section class="bough"><h2>قرن ${century}</h2><div class="faces">${byCentury(century).map(poetFace).join("")}</div></section>`,
-    )
-    .join("");
-  const undated = poets.filter((poet) => !centuryOf(poet.birthYearInLHijri));
   paint(
-    "درخت",
+    "درخت شاعران",
     `<h1>درخت شاعران</h1>
-     <p class="lead">بالا، نقشه خواندن هشت نام آشناست. پایین، همه شاعران منتشرشده گنجور، شاخه به شاخه بر اساس قرن. این خویشاوندی تاریخی نیست.</p>
-     <div class="tree">
-       <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-         <path class="trunk" d="M50 88 V18"/>
-         <path d="M50 34 C40 32, 28 30, 18 32"/>
-         <path d="M50 34 C60 32, 72 30, 82 32"/>
-         <path d="M50 50 C38 48, 26 50, 16 56"/>
-         <path d="M50 50 C62 48, 74 50, 84 56"/>
-         <path d="M50 66 C44 68, 38 72, 32 76"/>
-         <path d="M50 66 C56 68, 62 72, 68 76"/>
-       </svg>
-       ${leaves}
+     <p class="lead">همه ${poets.length} شاعر گنجور در یک درخت: هر ردیف یک قرن هجری است و هر ستون یک سرزمین زادگاه. روی هر نام بزن تا هم‌عصرانش روشن شوند.</p>
+     <div class="tree-tools">
+       <form class="big-search" id="tree-filter"><input id="tree-q" placeholder="نام شاعر یا شهر، مثلاً شیراز" aria-label="پالایش درخت" /></form>
+       <p class="chips" id="tree-regions"><button class="chip on" type="button" data-region="">همه سرزمین‌ها</button>${used
+         .map((region) => `<button class="chip" type="button" data-region="${region.key}" style="--tone:${region.color}"><i class="dot"></i>${region.name} · ${poets.filter((poet) => poet.region === region.key).length}</button>`)
+         .join("")}</p>
+       <label class="switch"><input type="checkbox" id="tree-famous" /> فقط نام‌های آشنا</label>
      </div>
-     <h2 class="section">همه شاعران · ${poets.length}</h2>
-     ${roster}
-     ${undated.length ? `<section class="bough"><h2>بی‌سال</h2><div class="faces">${undated.map(poetFace).join("")}</div></section>` : ""}`,
+     <div class="focus" id="tree-focus" hidden></div>
+     <div class="grove" style="--cols:${used.length}">
+       <div class="ring head"><div class="age">قرن</div>${used.map((region) => `<div class="cell" style="--tone:${region.color}"><i class="dot"></i>${region.name}</div>`).join("")}</div>
+       ${rows}
+     </div>
+     ${undated.length ? `<h2 class="section">بی‌سال · ${undated.length}</h2><div class="cell loose">${undated.map(leaf).join("")}</div>` : ""}
+     <p class="muted">سرزمین از مختصات زادگاهی که گنجور ثبت کرده ساخته شده؛ «؟» یعنی سال تقریبی است یا فقط سال درگذشت ثبت شده. این درخت خویشاوندی ادبی نیست؛ برای آن <a href="#/bridges/2">پل‌های تضمین</a> را ببین.</p>`,
   );
+  const byId = new Map(poets.map((poet) => [String(poet.id), poet]));
+  const twigs = [...document.querySelectorAll(".twig")];
+  const focus = document.querySelector("#tree-focus");
+  const box = document.querySelector("#tree-q");
+  const famous = document.querySelector("#tree-famous");
+  let region = "";
+  const filter = () => {
+    const q = box.value.trim();
+    for (const twig of twigs) {
+      const poet = byId.get(twig.dataset.id);
+      const text = `${poet.nickname || ""} ${poet.name || ""} ${poet.birthPlace || ""} ${poet.deathPlace || ""}`;
+      const show = (!q || text.includes(q)) && (!region || poet.region === region) && (!famous.checked || poet.pinOrder);
+      twig.hidden = !show;
+    }
+    document.querySelectorAll(".grove .ring:not(.head)").forEach((ring) => {
+      ring.hidden = !ring.querySelector(".twig:not([hidden])");
+    });
+  };
+  box.oninput = filter;
+  famous.onchange = filter;
+  document.querySelector("#tree-filter").onsubmit = (event) => event.preventDefault();
+  document.querySelector("#tree-regions").onclick = (event) => {
+    const chip = event.target.closest("[data-region]");
+    if (!chip) return;
+    region = chip.dataset.region;
+    document.querySelectorAll("#tree-regions .chip").forEach((node) => node.classList.toggle("on", node === chip));
+    filter();
+  };
+  const select = (id) => {
+    const poet = byId.get(String(id));
+    if (!poet) return;
+    const from = poet.birthYearInLHijri || poet.born;
+    const to = poet.deathYearInLHijri || from + 60;
+    const peers = poets.filter((other) => other.id !== poet.id && other.born && other.born <= to && (other.deathYearInLHijri || other.born + 60) >= from);
+    const peerIds = new Set(peers.map((other) => String(other.id)));
+    for (const twig of twigs) {
+      twig.classList.toggle("picked", twig.dataset.id === String(poet.id));
+      twig.classList.toggle("peer", peerIds.has(twig.dataset.id));
+    }
+    document.querySelector(".grove").classList.add("dim");
+    focus.hidden = false;
+    focus.innerHTML = `<div class="focus-body"><strong>${esc(poet.nickname || poet.name)}</strong> <span class="muted">${esc(poet.name)}${poet.birthPlace ? ` · ${esc(poet.birthPlace)}` : ""}${poet.birthYearInLHijri || poet.deathYearInLHijri ? ` · ${poet.birthYearInLHijri || "؟"}–${poet.deathYearInLHijri || "؟"}` : ""}</span>
+      <p class="muted">${peers.length} هم‌عصر روشن شد.</p>
+      <p class="chips"><a class="btn primary" href="#/poet/${poet.id}">صفحه شاعر</a><a class="chip" href="#/bridges/${poet.id}">پل‌ها</a>${from ? `<a class="chip" href="#/map?y=${Math.round((from + to) / 2)}">روی نقشه</a>` : ""}<button class="chip" type="button" id="tree-clear">پاک کن</button></p></div>`;
+    document.querySelector("#tree-clear").onclick = clear;
+  };
+  const clear = () => {
+    twigs.forEach((twig) => twig.classList.remove("picked", "peer"));
+    document.querySelector(".grove").classList.remove("dim");
+    focus.hidden = true;
+  };
+  document.querySelectorAll(".grove, .cell.loose").forEach((area) => {
+    area.onclick = (event) => {
+      const twig = event.target.closest(".twig");
+      if (twig) select(twig.dataset.id);
+    };
+  });
+  const start = query.get("poet");
+  if (start) {
+    select(start);
+    document.querySelector(`.twig[data-id="${start}"]`)?.scrollIntoView({ block: "center" });
+  }
 }
 
 const HOME_TOOLS = [
@@ -1930,7 +2014,7 @@ async function render() {
     else if (parts[0] === "poem" && parts[1]) await poemPage(parts[1], query);
     else if (parts[0] === "search") await searchPage(query);
     else if (parts[0] === "map") await mapPage(query);
-    else if (parts[0] === "tree" || parts[0] === "sky") await treePage();
+    else if (parts[0] === "tree" || parts[0] === "sky") await treePage(query);
     else if (parts[0] === "vazn") await vaznPage(query);
     else if (parts[0] === "discover") discoverPage();
     else if (parts[0] === "data") await dataPage();
