@@ -1386,7 +1386,7 @@ async function dataPage() {
      </tbody></table></div>
      <h2 class="section">سرچشمه‌ها</h2>
      <p><strong>رابط زنده گنجور</strong> (api.ganjoor.net): متن، صوت، حاشیه، تضمین، وزن، شمار واژه، آرایه و مردمان. هر بار زنده خوانده می‌شود.</p>
-     <p><strong>برون‌داد باز گنجور</strong> (<a href="https://github.com/ganjoor/ganjoor-data" rel="noreferrer">ganjoor-data</a>): پرونده‌های ثابت آدم‌ها، جای‌ها، برچسب‌ها و آرایه‌ها، از راه jsDelivr.</p>
+     <p><strong>برون‌داد باز گنجور</strong> (<a href="https://github.com/ganjoor/ganjoor-data" rel="noreferrer">ganjoor-data</a>): پرونده‌های ثابت آدم‌ها، جای‌ها، برچسب‌ها و آرایه‌ها، مستقیم از گیت‌هاب.</p>
      <p><strong>data.json همین مخزن</strong>: لایه آموزشی و دست‌نوشته؛ معنی‌ها ساده‌اند و شرح انتقادی نیستند.</p>
      <p class="muted">بخشی از آرایه‌های غزل‌های حافظ از «پیکره متن ادبی فارسی» (Raji و همکاران، ۲۰۲۳، مجوز MIT) آمده: <a href="https://doi.org/10.5281/zenodo.7923612" rel="noreferrer">doi.org/10.5281/zenodo.7923612</a>. برخی برچسب‌ها با کمک هوش مصنوعی ساخته و به دست ویراستار گنجور بازبینی شده‌اند.</p>`,
   );
@@ -1914,6 +1914,7 @@ async function render() {
   const path = `#/${parts.join("/")}`;
   mobile.hidden = true;
   menuBtn.setAttribute("aria-expanded", "false");
+  if (input && parts[0] !== "search" && document.activeElement !== input) input.value = "";
   document.querySelectorAll(".desk a, .mobile a, .footlinks a").forEach((link) => {
     const href = link.getAttribute("href") || "";
     const on = href === path || (href !== "#/" && path.startsWith(href)) || (href === "#/discover" && TOOL_ROUTES.has(parts[0] || "") && parts[0] !== "faal");

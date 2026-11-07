@@ -7,7 +7,7 @@
 | سرچشمه | نشانی | چگونه خوانده می‌شود |
 |---|---|---|
 | رابط زنده گنجور | `https://api.ganjoor.net/api/` | هر بار زنده، با `api()` و `rootApi()` |
-| برون‌داد باز گنجور (ganjoor-data) | `https://cdn.jsdelivr.net/gh/ganjoor/ganjoor-data@main/` | پرونده ثابت، با `fileJson()` |
+| برون‌داد باز گنجور (ganjoor-data) | `https://raw.githubusercontent.com/ganjoor/ganjoor-data/main/` (پشتیبان: jsDelivr) | پرونده ثابت، با `fileJson()`. jsDelivr این مخزن را چون از ۵۰ مگابایت بزرگ‌تر است دیگر کامل نمی‌دهد. |
 | لایه آموزشی همین مخزن | `data.json` | با `local()` |
 
 ## دسته‌بندی داده‌ها
